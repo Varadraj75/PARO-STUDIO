@@ -142,7 +142,7 @@ export default function Index() {
         {/* Mobile: PARO Originals (replaces Browse by tags) */}
         <section className="md:hidden px-4 py-4 sm:py-6">
           <a
-            href="/paro-originals"
+            href="/originals"
             className="flex items-center justify-between p-3 sm:p-4 rounded-lg bg-gradient-to-r from-[hsl(var(--gold))]/10 to-transparent border border-[hsl(var(--gold))]/20 hover:border-[hsl(var(--gold))]/40 transition-all"
           >
             <div className="flex items-center gap-2 sm:gap-3">
