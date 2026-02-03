@@ -49,4 +49,20 @@ export const GALLERY_MANIFEST = [
         tool_used: "Stable Diffusion",
         tags: ["vintage", "film", "cafe"],
     },
+    {
+        id: "7",
+        title: "Neon Cyberpunk Street",
+        filename: "image1-1280.webp",
+        prompt_text: "Futuristic cyberpunk street scene with neon signs, rain-soaked pavement reflecting colorful lights, flying cars in background, blade runner aesthetic, moody atmosphere",
+        tool_used: "Midjourney",
+        tags: ["cyberpunk", "neon", "futuristic", "urban"],
+    },
+    {
+        id: "8",
+        title: "Mountain Landscape Majesty",
+        filename: "image2-1280.webp",
+        prompt_text: "Majestic mountain range at sunset, dramatic clouds, alpine meadow in foreground, golden hour lighting, landscape photography, national geographic style",
+        tool_used: "DALL-E 3",
+        tags: ["landscape", "mountains", "nature", "sunset"],
+    },
 ];
