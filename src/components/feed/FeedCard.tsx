@@ -7,6 +7,7 @@ interface FeedCardProps {
   onLikeChange?: () => void;
   onSaveChange?: () => void;
   onLoginRequired?: () => void;
+  onDelete?: () => void;
 }
 
 /**
@@ -19,21 +20,22 @@ interface FeedCardProps {
  * This architecture allows ads to be injected into the feed
  * without modifying the grid structure or layout logic.
  */
-export function FeedCard({ item, onLikeChange, onSaveChange, onLoginRequired }: FeedCardProps) {
+export function FeedCard({ item, onLikeChange, onSaveChange, onLoginRequired, onDelete }: FeedCardProps) {
   switch (item.type) {
     case "image":
       return (
-        <ImageCard 
-          item={item} 
+        <ImageCard
+          item={item}
           onLikeChange={onLikeChange}
           onSaveChange={onSaveChange}
           onLoginRequired={onLoginRequired}
+          onDelete={onDelete}
         />
       );
-    
+
     case "advertisement":
       return <AdCard item={item} />;
-    
+
     default:
       // Type guard - ensures exhaustive handling
       const _exhaustive: never = item;

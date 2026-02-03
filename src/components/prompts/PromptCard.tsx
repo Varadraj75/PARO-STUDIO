@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Copy, Heart, Bookmark, Eye, Check, Pencil } from "lucide-react";
+import { Copy, Heart, Bookmark, Eye, Check, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { mockService } from "@/lib/mockData";
@@ -29,6 +29,7 @@ interface PromptCardProps {
   showEditButton?: boolean;
   onEditClick?: () => void;
   onLoginRequired?: () => void;
+  onDelete?: () => void;
 }
 
 export function PromptCard({
@@ -49,11 +50,14 @@ export function PromptCard({
   showEditButton = false,
   onEditClick,
   onLoginRequired,
+  onDelete,
 }: PromptCardProps) {
   const [copied, setCopied] = useState(false);
   const [localLiked, setLocalLiked] = useState(isLiked);
   const [localSaved, setLocalSaved] = useState(isSaved);
   const [localLikeCount, setLocalLikeCount] = useState(likeCount);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
@@ -120,6 +124,44 @@ export function PromptCard({
     }
 
     onSaveChange?.();
+  };
+
+  const handleDelete = async () => {
+    if (!user || !profile || profile.id !== creator.id) return;
+
+    setIsDeleting(true);
+
+    try {
+      // Delete from GitHub
+      const { deleteImageFromGitHub, extractFilenameFromUrl } = await import("@/lib/githubDelete");
+      const filename = extractFilenameFromUrl(imageUrl);
+
+      if (filename) {
+        const deleteResult = await deleteImageFromGitHub(filename);
+        if (!deleteResult.success) {
+          console.error("Failed to delete from GitHub:", deleteResult.error);
+          // Continue anyway to delete from local state
+        }
+      }
+
+      // Delete from mock service
+      await mockService.deletePrompt(id);
+
+      toast({ title: "Prompt deleted successfully" });
+
+      // Call parent callback
+      onDelete?.();
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast({
+        title: "Delete failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
   };
 
   return (
@@ -203,11 +245,27 @@ export function PromptCard({
               e.stopPropagation();
               onEditClick();
             }}
-            className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 p-1.5 sm:p-2 rounded-full bg-gold text-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10 touch-target flex items-center justify-center"
+            className="absolute bottom-2 sm:bottom-3 right-14 sm:right-16 p-1.5 sm:p-2 rounded-full bg-gold text-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10 touch-target flex items-center justify-center"
             title="Edit prompt"
             aria-label="Edit prompt"
           >
             <Pencil className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+          </button>
+        )}
+
+        {/* Delete button - for creator only */}
+        {user && profile && creator.id === profile.id && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowDeleteDialog(true);
+            }}
+            className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 p-1.5 sm:p-2 rounded-full bg-destructive/90 text-destructive-foreground opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity z-10 touch-target flex items-center justify-center"
+            title="Delete prompt"
+            aria-label="Delete prompt"
+          >
+            <Trash2 className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
           </button>
         )}
       </div>
@@ -305,6 +363,34 @@ export function PromptCard({
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDeleteDialog(false)}>
+          <div className="bg-background p-6 rounded-lg shadow-lg max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2">Delete Prompt?</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              This will permanently delete this prompt and its image from GitHub. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteDialog(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm border border-border rounded-sm hover:bg-secondary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm bg-destructive text-destructive-foreground rounded-sm hover:bg-destructive/90 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </article>
   );
 }

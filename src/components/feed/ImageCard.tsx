@@ -6,13 +6,14 @@ interface ImageCardProps {
   onLikeChange?: () => void;
   onSaveChange?: () => void;
   onLoginRequired?: () => void;
+  onDelete?: () => void;
 }
 
 /**
  * ImageCard wrapper for rendering image content in the feed.
  * Delegates to PromptCard for actual rendering.
  */
-export function ImageCard({ item, onLikeChange, onSaveChange, onLoginRequired }: ImageCardProps) {
+export function ImageCard({ item, onLikeChange, onSaveChange, onLoginRequired, onDelete }: ImageCardProps) {
   const { data } = item;
 
   return (
@@ -32,6 +33,7 @@ export function ImageCard({ item, onLikeChange, onSaveChange, onLoginRequired }:
       onLikeChange={onLikeChange}
       onSaveChange={onSaveChange}
       onLoginRequired={onLoginRequired}
+      onDelete={onDelete}
     />
   );
 }

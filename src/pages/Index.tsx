@@ -45,6 +45,7 @@ export default function Index() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SortOption>("trending");
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const { data: prompts, isLoading: promptsLoading } = usePrompts({
     selectedTags,
@@ -124,6 +125,7 @@ export default function Index() {
         key={item.type === "image" ? item.data.id : item.data.id}
         item={item}
         onLoginRequired={() => setAuthModalOpen(true)}
+        onDelete={() => setRefreshKey(prev => prev + 1)}
       />
     ));
   };

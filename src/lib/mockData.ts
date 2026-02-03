@@ -266,6 +266,22 @@ class MockDataService {
         return null;
     }
 
+    async deletePrompt(id: string): Promise<boolean> {
+        const index = this.prompts.findIndex(p => p.id === id);
+        if (index === -1) return false;
+
+        // Remove the prompt
+        this.prompts.splice(index, 1);
+
+        // Remove all likes for this prompt
+        this.likes = this.likes.filter(l => l.prompt_id !== id);
+
+        // Remove all saves for this prompt
+        this.saves = this.saves.filter(s => s.prompt_id !== id);
+
+        return true;
+    }
+
 
     // Interactions
     async toggleLike(userId: string, promptId: string): Promise<boolean> {
