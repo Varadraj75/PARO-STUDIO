@@ -152,26 +152,32 @@ export default function UploadPrompt() {
     try {
       setIsUploading(true);
 
-      // MOCK UPLOAD: Use object URL or base64
-      // Use the preview we already generated if possible, but let's regenerate blob URL to be safe/consistent
-      const imageUrl = URL.createObjectURL(imageFile);
+      // Upload image to GitHub
+      const { uploadImageToGitHub, generateFilename } = await import("@/lib/githubUpload");
+      const filename = generateFilename(imageFile.name);
 
-      // Simulate delay
-      await new Promise(r => setTimeout(r, 800));
+      const uploadResult = await uploadImageToGitHub(imageFile, filename);
+
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error || "Failed to upload image");
+      }
 
       setIsUploading(false);
 
-      // Create the prompt
+      // Create the prompt with CDN URL
       const newPrompt = await mockService.createPrompt({
         creator_id: profile.id,
         title,
         prompt_text: promptText,
-        image_url: imageUrl,
+        image_url: uploadResult.cdnUrl!, // Use CDN URL from GitHub
         tool_used: getActualToolName(),
         tags: tags
       });
 
-      toast({ title: "Prompt uploaded successfully!" });
+      toast({
+        title: "Prompt uploaded successfully!",
+        description: "Your image has been uploaded"
+      });
       navigate(`/prompt/${newPrompt.id}`);
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -182,6 +188,7 @@ export default function UploadPrompt() {
       });
     } finally {
       setIsSubmitting(false);
+      setIsUploading(false);
     }
   };
 
