@@ -43,7 +43,6 @@ export default function Settings() {
       setTwitter(profile.twitter || "");
       setInstagram(profile.instagram || "");
       setAvatarUrl(profile.avatar_url);
-      // @ts-ignore - cover_url might not be in types yet
       setCoverUrl(profile.cover_url || null);
     }
   }, [profile]);
@@ -177,7 +176,6 @@ export default function Settings() {
         twitter,
         instagram,
         avatar_url: avatarUrl,
-        // @ts-ignore
         cover_url: coverUrl,
       });
 

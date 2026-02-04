@@ -156,7 +156,6 @@ export default function Profile() {
     );
   }
 
-  // @ts-ignore - cover_url might not be in types yet
   const coverUrl = profile.cover_url;
 
   return (

@@ -9,6 +9,7 @@ export interface UserProfile {
     username: string;
     display_name: string | null;
     avatar_url: string | null;
+    cover_url?: string | null;
     bio: string | null;
     website: string | null;
     twitter: string | null;
@@ -181,10 +182,23 @@ class MockDataService {
     private follows: { follower_id: string, following_id: string }[] = [];
 
     constructor() {
-        // Load from localStorage if available? 
-        // For this specific request, pure in-memory or localStorage is fine.
-        // Let's stick to in-memory to ensure clean state on refresh for testing, 
-        // or maybe localStorage later if user complains.
+        // Load profiles from localStorage if available
+        const storedProfiles = localStorage.getItem('prompt-muse-profiles');
+        if (storedProfiles) {
+            try {
+                this.profiles = JSON.parse(storedProfiles);
+            } catch (e) {
+                console.error('Failed to parse stored profiles', e);
+            }
+        }
+    }
+
+    private saveProfilesToStorage() {
+        try {
+            localStorage.setItem('prompt-muse-profiles', JSON.stringify(this.profiles));
+        } catch (e) {
+            console.error('Failed to save profiles to localStorage', e);
+        }
     }
 
     // Auth Helpers
@@ -230,6 +244,7 @@ class MockDataService {
     async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile | null> {
         if (this.profiles[userId]) {
             this.profiles[userId] = { ...this.profiles[userId], ...updates };
+            this.saveProfilesToStorage();
             return this.profiles[userId];
         }
         return null;
