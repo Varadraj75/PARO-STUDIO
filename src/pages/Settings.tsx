@@ -68,6 +68,15 @@ export default function Settings() {
     };
     reader.readAsDataURL(file);
 
+    // Delete old avatar from GitHub if it exists
+    if (avatarUrl) {
+      const { deleteImageFromGitHub, extractFilenameFromUrl } = await import("@/lib/githubDelete");
+      const oldFilename = extractFilenameFromUrl(avatarUrl);
+      if (oldFilename) {
+        await deleteImageFromGitHub(oldFilename);
+      }
+    }
+
     // Upload to GitHub
     toast({ title: "Uploading avatar...", description: "Please wait" });
 
@@ -75,7 +84,11 @@ export default function Settings() {
     const result = await uploadImageToGitHub(file, filename);
 
     if (result.success && result.cdnUrl) {
-      setAvatarUrl(result.cdnUrl);
+      // Add cache-busting query parameter to force browser to reload the image
+      const cacheBustedUrl = `${result.cdnUrl}?t=${Date.now()}`;
+      setAvatarUrl(cacheBustedUrl);
+      // Clear preview so the new CDN URL is displayed
+      setAvatarPreview(null);
       toast({ title: "Avatar uploaded successfully!", description: "Your profile picture is now live" });
     } else {
       toast({
@@ -85,6 +98,11 @@ export default function Settings() {
       });
       // Revert preview on error
       setAvatarPreview(null);
+    }
+
+    // Reset file input to allow re-selection
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = "";
     }
   };
 
@@ -109,6 +127,15 @@ export default function Settings() {
     };
     reader.readAsDataURL(file);
 
+    // Delete old cover from GitHub if it exists
+    if (coverUrl) {
+      const { deleteImageFromGitHub, extractFilenameFromUrl } = await import("@/lib/githubDelete");
+      const oldFilename = extractFilenameFromUrl(coverUrl);
+      if (oldFilename) {
+        await deleteImageFromGitHub(oldFilename);
+      }
+    }
+
     // Upload to GitHub
     toast({ title: "Uploading cover photo...", description: "Please wait" });
 
@@ -116,7 +143,11 @@ export default function Settings() {
     const result = await uploadImageToGitHub(file, filename);
 
     if (result.success && result.cdnUrl) {
-      setCoverUrl(result.cdnUrl);
+      // Add cache-busting query parameter to force browser to reload the image
+      const cacheBustedUrl = `${result.cdnUrl}?t=${Date.now()}`;
+      setCoverUrl(cacheBustedUrl);
+      // Clear preview so the new CDN URL is displayed
+      setCoverPreview(null);
       toast({ title: "Cover photo uploaded successfully!", description: "Your cover photo is now live" });
     } else {
       toast({
@@ -126,6 +157,11 @@ export default function Settings() {
       });
       // Revert preview on error
       setCoverPreview(null);
+    }
+
+    // Reset file input to allow re-selection
+    if (coverInputRef.current) {
+      coverInputRef.current.value = "";
     }
   };
 
@@ -157,6 +193,12 @@ export default function Settings() {
     return true;
   };
 
+  // Helper function to remove cache-busting query parameters
+  const stripCacheBusting = (url: string | null): string | null => {
+    if (!url) return null;
+    return url.split('?')[0];
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -175,8 +217,8 @@ export default function Settings() {
         website,
         twitter,
         instagram,
-        avatar_url: avatarUrl,
-        cover_url: coverUrl,
+        avatar_url: stripCacheBusting(avatarUrl),
+        cover_url: stripCacheBusting(coverUrl),
       });
 
       if (!updatedProfile) throw new Error("Failed to update profile");

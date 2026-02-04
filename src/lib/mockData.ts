@@ -105,7 +105,7 @@ const INITIAL_PROMPTS: Prompt[] = [
         view_count: 85,
         copy_count: 12,
         created_at: new Date(Date.now() - 86400000 * 1).toISOString(),
-        creator_id: MOCK_USER_ID,
+        creator_id: CREATOR_ID,
         tags: ["photography", "vintage", "cozy", "interior"],
     },
     {
@@ -165,7 +165,7 @@ const INITIAL_PROMPTS: Prompt[] = [
         view_count: 380,
         copy_count: 130,
         created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
-        creator_id: MOCK_USER_ID,
+        creator_id: CREATOR_ID,
         tags: ["landscape", "mountains", "nature", "sunset"],
     },
 ];
@@ -205,7 +205,12 @@ class MockDataService {
     async signIn(email: string): Promise<{ user: UserProfile | null, error: Error | null }> {
         // Simulate network delay
         await new Promise(r => setTimeout(r, 500));
-        return { user: MOCK_USER, error: null };
+
+        // Find user by email (mock: just use the MOCK_USER_ID as the "email" user for now)
+        // In a real app we'd search by email. For this demo, we assume the user is "demo_user".
+        const user = this.profiles[MOCK_USER_ID];
+
+        return { user: user || MOCK_USER, error: null };
     }
 
     async signOut(): Promise<void> {

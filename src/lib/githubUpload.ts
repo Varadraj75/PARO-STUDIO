@@ -33,8 +33,9 @@ export async function uploadImageToGitHub(
         // Then upload to hero folder (for immediate display)
         await uploadToPath(`images/hero/${filename}`, base64Data, filename);
 
-        // Return CDN URL pointing to hero folder
-        const cdnUrl = `https://cdn.jsdelivr.net/gh/${GITHUB_OWNER}/${GITHUB_REPO}/images/hero/${filename}`;
+        // Return Raw URL pointing to hero folder (for immediate display, avoiding jsDelivr propagation delay)
+        // Note: For production with high traffic, a proper CDN is recommended, but for this demo/app startup, Raw is reliable.
+        const cdnUrl = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main/images/hero/${filename}`;
 
         return {
             success: true,

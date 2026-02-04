@@ -41,6 +41,8 @@ export default function UploadPrompt() {
   const [promptText, setPromptText] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [useUrl, setUseUrl] = useState(false);
   const [toolUsed, setToolUsed] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -138,7 +140,8 @@ export default function UploadPrompt() {
       return;
     }
 
-    if (!imageFile) {
+    // Validate image (either file or URL)
+    if (!useUrl && !imageFile) {
       toast({
         title: "Image required",
         description: "Please select an image to upload",
@@ -147,36 +150,50 @@ export default function UploadPrompt() {
       return;
     }
 
+    if (useUrl && !imageUrl.trim()) {
+      toast({
+        title: "Image URL required",
+        description: "Please enter an image URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      setIsUploading(true);
+      let finalImageUrl = imageUrl;
 
-      // Upload image to GitHub
-      const { uploadImageToGitHub, generateFilename } = await import("@/lib/githubUpload");
-      const filename = generateFilename(imageFile.name);
+      // If using file upload, upload to GitHub
+      if (!useUrl && imageFile) {
+        setIsUploading(true);
 
-      const uploadResult = await uploadImageToGitHub(imageFile, filename);
+        const { uploadImageToGitHub, generateFilename } = await import("@/lib/githubUpload");
+        const filename = generateFilename(imageFile.name);
 
-      if (!uploadResult.success) {
-        throw new Error(uploadResult.error || "Failed to upload image");
+        const uploadResult = await uploadImageToGitHub(imageFile, filename);
+
+        if (!uploadResult.success) {
+          throw new Error(uploadResult.error || "Failed to upload image");
+        }
+
+        finalImageUrl = uploadResult.cdnUrl!;
+        setIsUploading(false);
       }
 
-      setIsUploading(false);
-
-      // Create the prompt with CDN URL
+      // Create the prompt with the image URL
       const newPrompt = await mockService.createPrompt({
         creator_id: profile.id,
         title,
         prompt_text: promptText,
-        image_url: uploadResult.cdnUrl!, // Use CDN URL from GitHub
+        image_url: finalImageUrl,
         tool_used: getActualToolName(),
         tags: tags
       });
 
       toast({
         title: "Prompt uploaded successfully!",
-        description: "Your image has been uploaded"
+        description: useUrl ? "Your prompt has been created" : "Your image has been uploaded"
       });
       navigate(`/prompt/${newPrompt.id}`);
     } catch (error: any) {
@@ -220,43 +237,106 @@ export default function UploadPrompt() {
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               {/* Image Upload */}
               <div className="space-y-2">
-                <Label className="text-sm sm:text-base">Image</Label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-
-                {!imagePreview ? (
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm sm:text-base">Image</Label>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-36 sm:h-48 border-2 border-dashed border-border rounded-sm flex flex-col items-center justify-center gap-2 sm:gap-3 hover:border-accent transition-colors bg-secondary/30 touch-target"
+                    onClick={() => {
+                      setUseUrl(!useUrl);
+                      setImageFile(null);
+                      setImagePreview(null);
+                      setImageUrl("");
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = "";
+                      }
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    <ImageIcon className="h-8 sm:h-10 w-8 sm:w-10 text-muted-foreground" />
-                    <div className="text-center px-4">
-                      <p className="text-xs sm:text-sm font-medium">Click to upload image</p>
-                      <p className="text-xs text-muted-foreground mt-1">PNG, JPG, WEBP up to 5MB</p>
-                    </div>
+                    {useUrl ? "Upload file instead" : "Use URL instead"}
                   </button>
-                ) : (
-                  <div className="relative">
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="w-full max-h-48 sm:max-h-64 object-contain bg-secondary rounded-sm"
+                </div>
+
+                {useUrl ? (
+                  <div className="space-y-2">
+                    <Input
+                      type="url"
+                      placeholder="https://example.com/image.jpg"
+                      value={imageUrl}
+                      onChange={(e) => {
+                        setImageUrl(e.target.value);
+                        setImagePreview(e.target.value);
+                      }}
+                      className="bg-secondary/50 border-0 text-sm sm:text-base"
                     />
-                    <button
-                      type="button"
-                      onClick={clearImage}
-                      className="absolute top-2 right-2 p-1.5 bg-background/80 rounded-sm hover:bg-background transition-colors touch-target"
-                      aria-label="Remove image"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
+                    {imagePreview && (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full max-h-48 sm:max-h-64 object-contain bg-secondary rounded-sm"
+                          onError={() => {
+                            toast({
+                              title: "Invalid image URL",
+                              description: "Could not load image from the provided URL",
+                              variant: "destructive",
+                            });
+                            setImagePreview(null);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageUrl("");
+                            setImagePreview(null);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-background/80 rounded-sm hover:bg-background transition-colors touch-target"
+                          aria-label="Clear image"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+
+                    {!imagePreview ? (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full h-36 sm:h-48 border-2 border-dashed border-border rounded-sm flex flex-col items-center justify-center gap-2 sm:gap-3 hover:border-accent transition-colors bg-secondary/30 touch-target"
+                      >
+                        <ImageIcon className="h-8 sm:h-10 w-8 sm:w-10 text-muted-foreground" />
+                        <div className="text-center px-4">
+                          <p className="text-xs sm:text-sm font-medium">Click to upload image</p>
+                          <p className="text-xs text-muted-foreground mt-1">PNG, JPG, WEBP up to 5MB</p>
+                        </div>
+                      </button>
+                    ) : (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full max-h-48 sm:max-h-64 object-contain bg-secondary rounded-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={clearImage}
+                          className="absolute top-2 right-2 p-1.5 bg-background/80 rounded-sm hover:bg-background transition-colors touch-target"
+                          aria-label="Remove image"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -405,7 +485,13 @@ export default function UploadPrompt() {
               <Button
                 type="submit"
                 className="w-full text-sm sm:text-base py-2.5 sm:py-3"
-                disabled={isSubmitting || !toolUsed || (toolUsed === "Other" && !customTool.trim()) || tags.length < 3 || !imageFile}
+                disabled={
+                  isSubmitting ||
+                  !toolUsed ||
+                  (toolUsed === "Other" && !customTool.trim()) ||
+                  tags.length < 3 ||
+                  (useUrl ? !imageUrl.trim() : !imageFile)
+                }
               >
                 {isUploading ? "Uploading image..." : isSubmitting ? "Saving..." : "Upload Prompt"}
               </Button>
