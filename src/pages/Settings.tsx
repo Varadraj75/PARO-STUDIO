@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, ImageIcon } from "lucide-react";
+import { uploadImageToGitHub, generateFilename } from "@/lib/githubUpload";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -61,15 +62,31 @@ export default function Settings() {
       return;
     }
 
-    // Show preview & Mock Upload (use reader result)
+    // Show preview immediately
     const reader = new FileReader();
     reader.onloadend = () => {
-      const result = reader.result as string;
-      setAvatarPreview(result);
-      setAvatarUrl(result); // In specific real app this would be blob/url, but data url works for mock
-      toast({ title: "Avatar uploaded (Mock)" });
+      setAvatarPreview(reader.result as string);
     };
     reader.readAsDataURL(file);
+
+    // Upload to GitHub
+    toast({ title: "Uploading avatar...", description: "Please wait" });
+
+    const filename = generateFilename(file.name);
+    const result = await uploadImageToGitHub(file, filename);
+
+    if (result.success && result.cdnUrl) {
+      setAvatarUrl(result.cdnUrl);
+      toast({ title: "Avatar uploaded successfully!", description: "Your profile picture is now live" });
+    } else {
+      toast({
+        title: "Upload failed",
+        description: result.error || "Please try again",
+        variant: "destructive"
+      });
+      // Revert preview on error
+      setAvatarPreview(null);
+    }
   };
 
   const handleCoverSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,15 +103,31 @@ export default function Settings() {
       return;
     }
 
-    // Show preview & Mock Upload
+    // Show preview immediately
     const reader = new FileReader();
     reader.onloadend = () => {
-      const result = reader.result as string;
-      setCoverPreview(result);
-      setCoverUrl(result);
-      toast({ title: "Cover photo uploaded (Mock)" });
+      setCoverPreview(reader.result as string);
     };
     reader.readAsDataURL(file);
+
+    // Upload to GitHub
+    toast({ title: "Uploading cover photo...", description: "Please wait" });
+
+    const filename = generateFilename(file.name);
+    const result = await uploadImageToGitHub(file, filename);
+
+    if (result.success && result.cdnUrl) {
+      setCoverUrl(result.cdnUrl);
+      toast({ title: "Cover photo uploaded successfully!", description: "Your cover photo is now live" });
+    } else {
+      toast({
+        title: "Upload failed",
+        description: result.error || "Please try again",
+        variant: "destructive"
+      });
+      // Revert preview on error
+      setCoverPreview(null);
+    }
   };
 
   const checkUsernameAvailability = async (newUsername: string) => {
@@ -226,11 +259,11 @@ export default function Settings() {
                   onChange={handleAvatarSelect}
                   className="hidden"
                 />
-                <div className="flex items-center gap-4">
-                  <div
-                    onClick={() => avatarInputRef.current?.click()}
-                    className="relative cursor-pointer group"
-                  >
+                <div
+                  className="flex items-center gap-4 cursor-pointer"
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  <div className="relative group">
                     <Avatar className="h-20 w-20">
                       <AvatarImage src={avatarPreview || avatarUrl || ""} />
                       <AvatarFallback className="bg-secondary font-serif text-xl">
