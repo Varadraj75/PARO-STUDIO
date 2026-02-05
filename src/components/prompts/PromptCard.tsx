@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Copy, Heart, Bookmark, Eye, Check, Pencil, Trash2 } from "lucide-react";
+import { Copy, Heart, Bookmark, Check, Pencil, Trash2, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { mockService } from "@/lib/mockData";
@@ -237,6 +237,20 @@ export function PromptCard({
           </button>
         </div>
 
+        {/* Share button - bottom RIGHT on desktop only, visible on hover, stacked over watermark */}
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // TODO: Add share functionality
+          }}
+          className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 hidden lg:flex p-1.5 sm:p-2 rounded-full bg-background/90 backdrop-blur-sm shadow-soft transition-all duration-200 opacity-0 group-hover:opacity-100 z-10 items-center justify-center"
+          title="Share"
+          aria-label="Share prompt"
+        >
+          <Share2 className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+        </button>
+
         {/* Edit button - bottom right of image, for creator's own profile */}
         {showEditButton && onEditClick && (
           <button
@@ -279,7 +293,7 @@ export function PromptCard({
             </h3>
           </Link>
 
-          {/* Like & Save buttons - visible on mobile/tablet only, next to title */}
+          {/* Like, Save & Share buttons - visible on mobile/tablet only, next to title */}
           <div className="flex lg:hidden gap-1 sm:gap-1.5 flex-shrink-0">
             <button
               onClick={handleLike}
@@ -314,6 +328,19 @@ export function PromptCard({
                 )}
               />
             </button>
+
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // TODO: Add share functionality
+              }}
+              className="p-1 sm:p-1.5 rounded-full bg-secondary transition-all duration-200 touch-target flex items-center justify-center"
+              title="Share"
+              aria-label="Share prompt"
+            >
+              <Share2 className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
+            </button>
           </div>
         </div>
 
@@ -330,10 +357,6 @@ export function PromptCard({
 
         {/* Stats */}
         <div className="flex items-center gap-3 sm:gap-4 mt-1.5 sm:mt-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-0.5 sm:gap-1">
-            <Eye className="h-3 w-3" />
-            <span className="tabular-nums">{viewCount.toLocaleString()}</span>
-          </span>
           <span className="flex items-center gap-0.5 sm:gap-1">
             <Copy className="h-3 w-3" />
             <span className="tabular-nums">{copyCount.toLocaleString()}</span>

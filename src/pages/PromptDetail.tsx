@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Heart, Bookmark, Eye, Check, ArrowLeft } from "lucide-react";
+import { Copy, Heart, Bookmark, Check, ArrowLeft } from "lucide-react";
 import { mockService } from "@/lib/mockData";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/layout/Navbar";
@@ -236,10 +236,6 @@ export default function PromptDetail() {
 
                 {/* Stats */}
                 <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
-                  <span className="flex items-center gap-1">
-                    <Eye className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
-                    <span className="tabular-nums">{prompt.view_count.toLocaleString()}</span>
-                  </span>
                   <span className="flex items-center gap-1">
                     <Copy className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
                     <span className="tabular-nums">{prompt.copy_count.toLocaleString()}</span>
