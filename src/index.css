@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -67,9 +67,9 @@
     --sidebar-ring: 38 35% 70%;
 
     /* Typography */
-    --font-serif: 'Playfair Display', Georgia, serif;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    
+    --font-serif: "Playfair Display", Georgia, serif;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
     /* Shadows - Soft diffused */
     --shadow-soft: 0 2px 20px -4px hsl(220 10% 18% / 0.06);
     --shadow-card: 0 4px 30px -8px hsl(220 10% 18% / 0.08);
@@ -138,7 +138,9 @@
   }
 
   html {
-    font-feature-settings: 'kern' 1, 'liga' 1;
+    font-feature-settings:
+      "kern" 1,
+      "liga" 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     scroll-behavior: smooth;
@@ -185,7 +187,9 @@
     font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.75rem);
   }
 
-  h4, h5, h6 {
+  h4,
+  h5,
+  h6 {
     font-family: var(--font-serif);
     font-weight: 400;
     letter-spacing: -0.01em;
@@ -194,7 +198,9 @@
   }
 
   /* Prevent images from overflowing */
-  img, video, svg {
+  img,
+  video,
+  svg {
     max-width: 100%;
     height: auto;
   }
@@ -240,12 +246,12 @@
   .link-editorial {
     @apply relative inline-block;
   }
-  
+
   .link-editorial::after {
-    content: '';
+    content: "";
     @apply absolute bottom-0 left-0 w-full h-px bg-current opacity-0 transition-opacity duration-500;
   }
-  
+
   .link-editorial:hover::after {
     @apply opacity-40;
   }
@@ -360,7 +366,9 @@
 
   /* Slow scale on hover */
   .hover-lift {
-    transition: transform var(--transition-medium), box-shadow var(--transition-medium);
+    transition:
+      transform var(--transition-medium),
+      box-shadow var(--transition-medium);
   }
 
   .hover-lift:hover {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, X, Sparkles, TrendingUp, Copy, Users, HelpCircle, Plus, Heart, Bookmark, DollarSign } from "lucide-react";
+import { Search, X, Sparkles, TrendingUp, Copy, Users, HelpCircle, Plus, Heart, Bookmark, DollarSign, MessageSquare, FileText } from "lucide-react";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,6 +166,14 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
                         Top Creators
                       </Link>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => console.log('Feedback clicked')} className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Feedback
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => console.log('Community Guidelines clicked')} className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Community Guidelines
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
                       <Link to="/earn" className="flex items-center gap-2">
@@ -286,6 +294,14 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
                         <Heart className="h-4 w-4" />
                         Liked
                       </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => console.log('Feedback clicked')} className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Feedback
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => console.log('Community Guidelines clicked')} className="flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Community Guidelines
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
 
