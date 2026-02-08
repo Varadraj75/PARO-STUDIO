@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { ExternalLink } from "lucide-react";
 
+
 export default function Profile() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
@@ -292,6 +293,8 @@ export default function Profile() {
             )}
           </div>
         </section>
+
+
       </main>
 
       <Footer />

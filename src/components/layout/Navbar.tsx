@@ -29,7 +29,7 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [localSearch, setLocalSearch] = useState(searchQuery);
-  
+
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const { user, profile, signOut } = useAuth();
 
@@ -166,9 +166,11 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
                         Top Creators
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => console.log('Feedback clicked')} className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Feedback
+                    <DropdownMenuItem asChild>
+                      <Link to="/feedback" className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        Feedback
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => console.log('Community Guidelines clicked')} className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
@@ -295,9 +297,11 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
                         Liked
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => console.log('Feedback clicked')} className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Feedback
+                    <DropdownMenuItem asChild>
+                      <Link to="/feedback" className="flex items-center gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        Feedback
+                      </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => console.log('Community Guidelines clicked')} className="flex items-center gap-2">
                       <FileText className="h-4 w-4" />
