@@ -37,9 +37,10 @@ interface EditPromptModalProps {
 }
 
 const AI_TOOLS = [
-  "NANO BANANA",
+  "NANO BANANA (Gemini)",
+  "DALL-E 3 (ChatGPT)",
+  "Meta AI",
   "Midjourney",
-  "DALL-E 3",
   "Stable Diffusion",
   "Leonardo AI",
   "Firefly",

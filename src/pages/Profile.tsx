@@ -13,18 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ExternalLink, Trash2 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { ExternalLink } from "lucide-react";
 
 export default function Profile() {
   const { username } = useParams<{ username: string }>();
@@ -116,14 +105,7 @@ export default function Profile() {
     await mockService.toggleFollow(currentUserProfile.id, profile.id);
   };
 
-  const handleDeletePrompt = async (promptId: string) => {
-    // Mock delete
-    // We didn't implement delete in mockService, let's just pretend or allow it
-    // Actually, let's implement a simple filter out in mockService if we wanted persistence
-    // For now, toast and fake refresh
-    toast({ title: "Prompt deleted (Mock)" });
-    refetchPrompts();
-  };
+
 
   const isOwnProfile = currentUserProfile?.username === username;
 
@@ -302,38 +284,8 @@ export default function Profile() {
                       showEditButton={isOwnProfile}
                       onEditClick={() => setEditingPrompt(prompt)}
                       onLoginRequired={() => setAuthModalOpen(true)}
+                      onDelete={() => refetchPrompts()}
                     />
-
-                    {isOwnProfile && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <button
-                            className="absolute top-2 sm:top-3 left-2 sm:left-3 p-1.5 sm:p-2 rounded-full bg-destructive/90 text-destructive-foreground opacity-100 lg:opacity-0 lg:group-hover/card:opacity-100 transition-opacity z-10 touch-target flex items-center justify-center"
-                            title="Delete prompt"
-                            aria-label="Delete prompt"
-                          >
-                            <Trash2 className="h-3.5 sm:h-4 w-3.5 sm:w-4" />
-                          </button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete prompt?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete your prompt.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-                            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeletePrompt(prompt.id)}
-                              className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
                   </div>
                 ))}
               </div>

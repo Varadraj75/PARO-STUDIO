@@ -21,13 +21,12 @@ import { X, ImageIcon, TrendingUp } from "lucide-react";
 import { STANDARD_TAGS } from "@/lib/standardTags";
 
 const AI_TOOLS = [
+  "DALL-E 3 (ChatGPT)",
+  "Meta AI",
   "Midjourney",
-  "DALL-E 3",
   "Stable Diffusion",
   "Leonardo AI",
-  "Adobe Firefly",
-  "Ideogram",
-  "Flux",
+  "Firefly",
   "Other",
 ];
 
@@ -385,7 +384,7 @@ export default function UploadPrompt() {
                     <SelectItem value="NANO BANANA" className="relative">
                       <span className="flex items-center gap-2">
                         <span className="font-semibold text-foreground">
-                          NANO BANANA
+                          NANO BANANA (Gemini)
                         </span>
                         <TrendingUp className="h-3.5 w-3.5 text-gold" />
                       </span>
