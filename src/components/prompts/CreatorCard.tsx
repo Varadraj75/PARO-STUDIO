@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface CreatorCardProps {
+  id: string;
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
@@ -10,6 +11,7 @@ interface CreatorCardProps {
 }
 
 export function CreatorCard({
+  id,
   username,
   displayName,
   avatarUrl,
@@ -18,7 +20,7 @@ export function CreatorCard({
 }: CreatorCardProps) {
   return (
     <Link
-      to={`/profile/${username}`}
+      to={`/profile/${id}`}
       className="flex items-center gap-4 p-4 bg-card rounded-sm hover-lift transition-all duration-300"
     >
       <Avatar className="h-14 w-14">

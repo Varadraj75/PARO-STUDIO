@@ -111,10 +111,18 @@ export default function PromptDetail() {
   };
 
   const handleLike = async () => {
-    if (!user || !profile || !prompt) {
+    if (!user) {
       toast({
         title: "Sign in required",
         description: "Please sign in to like prompts",
+      });
+      return;
+    }
+
+    if (!profile || !prompt) {
+      toast({
+        title: "Profile loading",
+        description: "Please wait for your profile to load",
       });
       return;
     }
@@ -127,10 +135,18 @@ export default function PromptDetail() {
   };
 
   const handleSave = async () => {
-    if (!user || !profile || !prompt) {
+    if (!user) {
       toast({
         title: "Sign in required",
         description: "Please sign in to save prompts",
+      });
+      return;
+    }
+
+    if (!profile || !prompt) {
+      toast({
+        title: "Profile loading",
+        description: "Please wait for your profile to load",
       });
       return;
     }
@@ -215,7 +231,7 @@ export default function PromptDetail() {
 
                 {/* Creator */}
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <Link to={`/profile/${prompt.creator.username}`}>
+                  <Link to={`/profile/${prompt.creator.id}`}>
                     <Avatar className="h-6 w-6 sm:h-7 sm:w-7">
                       <AvatarImage src={prompt.creator.avatar_url || ""} />
                       <AvatarFallback className="bg-secondary font-serif text-xs">
@@ -225,7 +241,7 @@ export default function PromptDetail() {
                   </Link>
                   <div>
                     <Link
-                      to={`/profile/${prompt.creator.username}`}
+                      to={`/profile/${prompt.creator.id}`}
                       className="text-sm font-medium hover:text-gold transition-colors"
                     >
                       {prompt.creator.display_name || prompt.creator.username}

@@ -33,7 +33,7 @@ const AI_TOOLS = [
 
 export default function UploadPrompt() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, session, profile, loading } = useAuth();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -122,9 +122,10 @@ export default function UploadPrompt() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user || !profile) {
+    // Auth check: only verify user is authenticated, not profile existence
+    if (!user) {
       toast({
-        title: "Sign in required",
+        title: "Authentication required",
         description: "Please sign in to upload prompts",
         variant: "destructive",
       });
@@ -164,21 +165,15 @@ export default function UploadPrompt() {
     try {
       let finalImageUrl = imageUrl;
 
-      // If using file upload, upload to GitHub
+      // If using file upload, show message that it's temporarily disabled
       if (!useUrl && imageFile) {
-        setIsUploading(true);
-
-        const { uploadImageToGitHub, generateFilename } = await import("@/lib/githubUpload");
-        const filename = generateFilename(imageFile.name);
-
-        const uploadResult = await uploadImageToGitHub(imageFile, filename);
-
-        if (!uploadResult.success) {
-          throw new Error(uploadResult.error || "Failed to upload image");
-        }
-
-        finalImageUrl = uploadResult.cdnUrl!;
-        setIsUploading(false);
+        toast({
+          title: "File upload temporarily disabled",
+          description: "Image uploads are being migrated to a secure backend. Please use 'Use URL instead' option for now.",
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       // Create the prompt with the image URL
@@ -193,7 +188,7 @@ export default function UploadPrompt() {
 
       toast({
         title: "Prompt uploaded successfully!",
-        description: useUrl ? "Your prompt has been created" : "Your image has been uploaded"
+        description: "Your prompt has been created"
       });
       navigate(`/prompt/${newPrompt.id}`);
     } catch (error: any) {
@@ -209,7 +204,19 @@ export default function UploadPrompt() {
     }
   };
 
-  if (!user) {
+  // Auth guard: wait for loading, then check session
+  if (loading) {
+    return (
+      <div className="min-h-screen min-h-[100dvh] bg-background">
+        <Navbar />
+        <main className="pt-14 sm:pt-16 lg:pt-20 px-4 sm:px-6 lg:px-8 text-center py-12 sm:py-16">
+          <p className="text-sm sm:text-base text-muted-foreground">Loading...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
     return (
       <div className="min-h-screen min-h-[100dvh] bg-background">
         <Navbar />

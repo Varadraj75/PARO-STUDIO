@@ -12,11 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { Camera, ImageIcon } from "lucide-react";
-import { uploadImageToGitHub, generateFilename } from "@/lib/githubUpload";
+
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, session, profile, refreshProfile, loading } = useAuth();
   const { toast } = useToast();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -68,37 +68,17 @@ export default function Settings() {
     };
     reader.readAsDataURL(file);
 
-    // Delete old avatar from GitHub if it exists
-    if (avatarUrl) {
-      const { deleteImageFromGitHub, extractFilenameFromUrl } = await import("@/lib/githubDelete");
-      const oldFilename = extractFilenameFromUrl(avatarUrl);
-      if (oldFilename) {
-        await deleteImageFromGitHub(oldFilename);
-      }
-    }
+    // Image upload temporarily disabled - backend migration in progress
+    toast({ 
+      title: "Upload temporarily disabled", 
+      description: "Image uploads are being migrated to a secure backend. Please check back soon!",
+      variant: "destructive"
+    });
 
-    // Upload to GitHub
-    toast({ title: "Uploading avatar...", description: "Please wait" });
-
-    const filename = generateFilename(file.name);
-    const result = await uploadImageToGitHub(file, filename);
-
-    if (result.success && result.cdnUrl) {
-      // Add cache-busting query parameter to force browser to reload the image
-      const cacheBustedUrl = `${result.cdnUrl}?t=${Date.now()}`;
-      setAvatarUrl(cacheBustedUrl);
-      // Clear preview so the new CDN URL is displayed
+    // Clear preview after showing message
+    setTimeout(() => {
       setAvatarPreview(null);
-      toast({ title: "Avatar uploaded successfully!", description: "Your profile picture is now live" });
-    } else {
-      toast({
-        title: "Upload failed",
-        description: result.error || "Please try again",
-        variant: "destructive"
-      });
-      // Revert preview on error
-      setAvatarPreview(null);
-    }
+    }, 2000);
 
     // Reset file input to allow re-selection
     if (avatarInputRef.current) {
@@ -127,37 +107,17 @@ export default function Settings() {
     };
     reader.readAsDataURL(file);
 
-    // Delete old cover from GitHub if it exists
-    if (coverUrl) {
-      const { deleteImageFromGitHub, extractFilenameFromUrl } = await import("@/lib/githubDelete");
-      const oldFilename = extractFilenameFromUrl(coverUrl);
-      if (oldFilename) {
-        await deleteImageFromGitHub(oldFilename);
-      }
-    }
+    // Image upload temporarily disabled - backend migration in progress
+    toast({ 
+      title: "Upload temporarily disabled", 
+      description: "Image uploads are being migrated to a secure backend. Please check back soon!",
+      variant: "destructive"
+    });
 
-    // Upload to GitHub
-    toast({ title: "Uploading cover photo...", description: "Please wait" });
-
-    const filename = generateFilename(file.name);
-    const result = await uploadImageToGitHub(file, filename);
-
-    if (result.success && result.cdnUrl) {
-      // Add cache-busting query parameter to force browser to reload the image
-      const cacheBustedUrl = `${result.cdnUrl}?t=${Date.now()}`;
-      setCoverUrl(cacheBustedUrl);
-      // Clear preview so the new CDN URL is displayed
+    // Clear preview after showing message
+    setTimeout(() => {
       setCoverPreview(null);
-      toast({ title: "Cover photo uploaded successfully!", description: "Your cover photo is now live" });
-    } else {
-      toast({
-        title: "Upload failed",
-        description: result.error || "Please try again",
-        variant: "destructive"
-      });
-      // Revert preview on error
-      setCoverPreview(null);
-    }
+    }, 2000);
 
     // Reset file input to allow re-selection
     if (coverInputRef.current) {
@@ -202,7 +162,8 @@ export default function Settings() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!user || !profile) return;
+    // Auth check: only verify user is authenticated
+    if (!user) return;
 
     const isUsernameValid = await checkUsernameAvailability(username);
     if (!isUsernameValid) return;
@@ -225,7 +186,7 @@ export default function Settings() {
 
       await refreshProfile();
       toast({ title: "Profile updated successfully!" });
-      navigate(`/profile/${username}`);
+      navigate(`/profile/${user.id}`);
     } catch (error: any) {
       toast({ title: "Update failed", description: error.message, variant: "destructive" });
     } finally {
@@ -233,13 +194,27 @@ export default function Settings() {
     }
   };
 
-  if (!user) {
+  // Auth guard: wait for loading, then check session
+  if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen min-h-[100dvh] bg-background">
         <Navbar />
-        <main className="pt-20 lg:pt-24 container mx-auto px-4 lg:px-8 text-center py-16">
-          <h1 className="font-serif text-2xl mb-4">Sign in required</h1>
-          <p className="text-muted-foreground">Please sign in to edit your profile</p>
+        <main className="pt-14 sm:pt-16 lg:pt-20 px-4 sm:px-6 lg:px-8 text-center py-12 sm:py-16">
+          <p className="text-sm sm:text-base text-muted-foreground">Loading...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
+    return (
+      <div className="min-h-screen min-h-[100dvh] bg-background">
+        <Navbar />
+        <main className="pt-14 sm:pt-16 lg:pt-20 px-4 sm:px-6 lg:px-8 text-center py-12 sm:py-16">
+          <h1 className="font-serif text-xl sm:text-2xl mb-3 sm:mb-4">Sign in to access settings</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            You need to be signed in to manage your settings
+          </p>
         </main>
       </div>
     );

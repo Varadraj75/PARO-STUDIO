@@ -10,7 +10,7 @@ import { PromptCard } from "@/components/prompts/PromptCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Liked() {
-  const { user, profile } = useAuth();
+  const { user, session, profile, loading } = useAuth();
 
   // Fetch liked prompts
   const { data: likedPrompts, isLoading, refetch } = useQuery({
@@ -42,7 +42,19 @@ export default function Liked() {
     enabled: !!profile?.id,
   });
 
-  if (!user) {
+  // Auth guard: wait for loading, then check session
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="pt-20 lg:pt-24 container mx-auto px-4 lg:px-8 text-center py-16">
+          <p className="text-muted-foreground">Loading...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
