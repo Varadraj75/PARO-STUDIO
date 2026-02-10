@@ -100,10 +100,18 @@ export function PromptCard({
     e.preventDefault();
     e.stopPropagation();
 
-    if (!user || !profile) {
+    if (!user) {
       toast({
         title: "Sign in required",
         description: "Please sign in to like prompts",
+      });
+      return;
+    }
+
+    if (!profile) {
+      toast({
+        title: "Profile loading",
+        description: "Please wait for your profile to load",
       });
       return;
     }
@@ -121,10 +129,18 @@ export function PromptCard({
     e.preventDefault();
     e.stopPropagation();
 
-    if (!user || !profile) {
+    if (!user) {
       toast({
         title: "Sign in required",
         description: "Please sign in to save prompts",
+      });
+      return;
+    }
+
+    if (!profile) {
+      toast({
+        title: "Profile loading",
+        description: "Please wait for your profile to load",
       });
       return;
     }
@@ -143,27 +159,22 @@ export function PromptCard({
   };
 
   const handleDelete = async () => {
-    if (!user || !profile || profile.id !== creator.id) return;
+    if (!user) return;
+    if (!profile || profile.id !== creator.id) return;
 
     setIsDeleting(true);
 
     try {
-      // Delete from GitHub
-      const { deleteImageFromGitHub, extractFilenameFromUrl } = await import("@/lib/githubDelete");
-      const filename = extractFilenameFromUrl(imageUrl);
-
-      if (filename) {
-        const deleteResult = await deleteImageFromGitHub(filename);
-        if (!deleteResult.success) {
-          console.error("Failed to delete from GitHub:", deleteResult.error);
-          // Continue anyway to delete from local state
-        }
-      }
-
+      // Note: Image deletion from storage is temporarily disabled during backend migration
+      // Images will remain in storage but the prompt record will be deleted
+      
       // Delete from mock service
       await mockService.deletePrompt(id);
 
-      toast({ title: "Prompt deleted successfully" });
+      toast({ 
+        title: "Prompt deleted successfully",
+        description: "Note: Image cleanup is temporarily disabled during backend migration"
+      });
 
       // Call parent callback
       onDelete?.();
@@ -273,7 +284,7 @@ export function PromptCard({
               {/* View Profile */}
               <DrawerClose asChild>
                 <Link
-                  to={`/profile/${creator.username}`}
+                  to={`/profile/${creator.id}`}
                   className="flex items-center gap-3 px-4 py-3 hover:bg-secondary rounded-sm transition-colors"
                 >
                   <UserCircle className="h-5 w-5 text-foreground" />
@@ -447,7 +458,7 @@ export function PromptCard({
               </DropdownMenuItem>
               
               <DropdownMenuItem asChild>
-                <Link to={`/profile/${creator.username}`} className="flex items-center cursor-pointer">
+                <Link to={`/profile/${creator.id}`} className="flex items-center cursor-pointer">
                   <UserCircle className="h-4 w-4 mr-2" />
                   View Profile
                 </Link>
@@ -504,7 +515,7 @@ export function PromptCard({
 
         <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground mt-1">
           <Link
-            to={`/profile/${creator.username}`}
+            to={`/profile/${creator.id}`}
             className="hover:text-foreground transition-colors truncate max-w-[40%]"
           >
             {creator.display_name || creator.username}
@@ -532,7 +543,7 @@ export function PromptCard({
           <div className="bg-background p-6 rounded-lg shadow-lg max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-2">Delete Prompt?</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              This will permanently delete this prompt and its image from GitHub. This action cannot be undone.
+              This will permanently delete this prompt. Note: Image cleanup is temporarily disabled during backend migration.
             </p>
             <div className="flex gap-3 justify-end">
               <button

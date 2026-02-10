@@ -10,7 +10,7 @@ import { PromptCard } from "@/components/prompts/PromptCard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Saved() {
-  const { user, profile } = useAuth();
+  const { user, session, profile, loading } = useAuth();
 
   // Fetch saved prompts
   const { data: savedPrompts, isLoading, refetch } = useQuery({
@@ -42,7 +42,20 @@ export default function Saved() {
     enabled: !!profile?.id,
   });
 
-  if (!user) {
+  // Auth guard: wait for loading, then check session
+  if (loading) {
+    return (
+      <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
+        <Navbar />
+        <main className="flex-1 pt-14 sm:pt-16 lg:pt-20 px-4 sm:px-6 lg:px-8 text-center py-12 sm:py-16">
+          <p className="text-sm sm:text-base text-muted-foreground">Loading...</p>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!session?.user) {
     return (
       <div className="min-h-screen min-h-[100dvh] bg-background flex flex-col">
         <Navbar />

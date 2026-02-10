@@ -41,6 +41,7 @@ export default function TopCreators() {
                 {topCreators.map((creator) => (
                   <CreatorCard
                     key={creator.username}
+                    id={creator.id}
                     username={creator.username}
                     displayName={creator.display_name}
                     avatarUrl={creator.avatar_url}

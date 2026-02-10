@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { getProfile } from "@/services/supabase/profiles";
 import { mockService } from "@/lib/mockData";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -17,7 +18,7 @@ import { ExternalLink } from "lucide-react";
 
 
 export default function Profile() {
-  const { username } = useParams<{ username: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, profile: currentUserProfile } = useAuth();
   const { toast } = useToast();
@@ -27,14 +28,27 @@ export default function Profile() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: ["profile", username],
+    queryKey: ["profile", id],
     queryFn: async () => {
-      if (!username) return null;
-      // Get profile by username
-      const data = await mockService.getProfileByUsername(username);
-      return data;
+      if (!id) return null;
+      // Get profile by ID from Supabase
+      const supabaseProfile = await getProfile(id);
+      if (!supabaseProfile) return null;
+      
+      // Convert Supabase Profile to UserProfile format
+      return {
+        id: supabaseProfile.id,
+        username: supabaseProfile.username || supabaseProfile.id.slice(0, 8),
+        display_name: supabaseProfile.full_name || supabaseProfile.username || 'User',
+        avatar_url: supabaseProfile.avatar_url,
+        cover_url: supabaseProfile.cover_url,
+        bio: supabaseProfile.bio,
+        website: supabaseProfile.website,
+        twitter: null,
+        instagram: null,
+      };
     },
-    enabled: !!username,
+    enabled: !!id,
   });
 
   const { data: prompts, isLoading: promptsLoading, refetch: refetchPrompts } = useQuery({
@@ -89,7 +103,7 @@ export default function Profile() {
   }, [profile?.id, currentUserProfile?.id]);
 
   const handleFollow = async () => {
-    if (!user || !currentUserProfile) {
+    if (!user) {
       toast({
         title: "Sign in required",
         description: "Please sign in to follow creators",
@@ -97,7 +111,7 @@ export default function Profile() {
       return;
     }
 
-    if (!profile?.id) return;
+    if (!currentUserProfile || !profile?.id) return;
 
     const newFollowing = !isFollowing;
     setIsFollowing(newFollowing);
@@ -108,7 +122,7 @@ export default function Profile() {
 
 
 
-  const isOwnProfile = currentUserProfile?.username === username;
+  const isOwnProfile = currentUserProfile?.id === id;
 
   if (profileLoading) {
     return (

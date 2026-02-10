@@ -140,9 +140,11 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem asChild>
-                      <Link to={`/profile/${profile?.username}`}>Profile</Link>
-                    </DropdownMenuItem>
+                    {profile?.id && (
+                      <DropdownMenuItem asChild>
+                        <Link to={`/profile/${profile.id}`}>Profile</Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem asChild>
                       <Link to="/upload">Upload Prompt</Link>
                     </DropdownMenuItem>
@@ -282,9 +284,11 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
                     <DropdownMenuSeparator />
 
                     {/* Profile Links */}
-                    <DropdownMenuItem asChild>
-                      <Link to={`/profile/${profile?.username}`}>Profile</Link>
-                    </DropdownMenuItem>
+                    {profile?.id && (
+                      <DropdownMenuItem asChild>
+                        <Link to={`/profile/${profile.id}`}>Profile</Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem asChild>
                       <Link to="/saved" className="flex items-center gap-2">
                         <Bookmark className="h-4 w-4" />
