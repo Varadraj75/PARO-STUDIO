@@ -16,6 +16,7 @@ import TopCreators from "./pages/TopCreators";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import EarnWithParo from "./pages/EarnWithParo";
+import Feedback from "./pages/Feedback";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/top-creators" element={<TopCreators />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/earn" element={<EarnWithParo />} />
+              <Route path="/feedback" element={<Feedback />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
