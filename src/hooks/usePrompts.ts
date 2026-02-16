@@ -1,18 +1,26 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { mockService, Prompt } from "@/lib/mockData";
 
-export interface PromptWithDetails extends Omit<Prompt, "creator_id"> {
+export interface PromptWithDetails {
+  id: string;
+  title: string;
+  promptText: string;
+  imageUrl: string;
+  toolUsed: string;
+  viewCount: number;
+  copyCount: number;
+  createdAt: string;
+  tags: string[];
   creator: {
     id: string;
     username: string;
-    display_name: string | null;
-    avatar_url: string | null;
+    displayName: string;
+    avatarUrl: string | null;
   };
-  like_count: number;
-  is_liked: boolean;
-  is_saved: boolean;
+  likeCount: number;
+  isLiked: boolean;
+  isSaved: boolean;
 }
 
 export function usePrompts(options?: {
@@ -21,14 +29,21 @@ export function usePrompts(options?: {
   sortBy?: "trending" | "newest" | "most_copied";
   limit?: number;
 }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { selectedTags = [], searchQuery = "", sortBy = "trending", limit = 50 } = options || {};
 
   return useQuery({
-    queryKey: ["prompts", selectedTags, searchQuery, sortBy, limit, user?.id],
+    // Stable key - only includes search params, not auth state
+    queryKey: ["prompts", selectedTags, searchQuery, sortBy, limit],
     queryFn: async () => {
-      // Get all raw prompts
-      const allPrompts = await mockService.getPrompts();
+      // Get all prompts from Supabase
+      const { getAllPrompts } = await import('@/services/supabase/prompts');
+      const { prompts: allPrompts, error } = await getAllPrompts(limit * 2); // Get more for filtering
+      
+      if (error) {
+        console.error('Error fetching prompts:', error);
+        return [];
+      }
 
       // Filter by Search Query
       let filtered = allPrompts;
@@ -36,56 +51,75 @@ export function usePrompts(options?: {
         const query = searchQuery.toLowerCase();
         filtered = filtered.filter(p =>
           p.title.toLowerCase().includes(query) ||
-          p.prompt_text.toLowerCase().includes(query) ||
-          p.tags.some(t => t.toLowerCase().includes(query))
+          p.prompt.toLowerCase().includes(query) ||
+          (p.tags && p.tags.some(t => t.toLowerCase().includes(query)))
         );
       }
 
       // Filter by Tags
       if (selectedTags.length > 0) {
         filtered = filtered.filter(p =>
-          selectedTags.some(tag => p.tags.includes(tag))
+          p.tags && selectedTags.some(tag => p.tags!.includes(tag))
         );
       }
 
       // Sort
       filtered.sort((a, b) => {
         if (sortBy === "newest") {
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
         } else if (sortBy === "most_copied") {
-          return b.copy_count - a.copy_count;
+          return (b.copy_count || 0) - (a.copy_count || 0);
         } else {
           // Trending: View count for now
-          return b.view_count - a.view_count;
+          return (b.view_count || 0) - (a.view_count || 0);
         }
       });
 
       // Limit
       filtered = filtered.slice(0, limit);
 
-      // Enrich with Data
+      // Enrich with Data from Supabase
+      const { getProfile } = await import('@/services/supabase/profiles');
+      const { getLikeCount, isLiked } = await import('@/services/supabase/likes');
+      const { isSaved } = await import('@/services/supabase/saves');
+
       const enrichedPrompts: PromptWithDetails[] = await Promise.all(filtered.map(async (p) => {
-        const creator = await mockService.getProfile(p.creator_id);
-        const likeCount = mockService.getLikesCount(p.id);
-        const isLiked = mockService.isLiked(user?.id, p.id);
-        const isSaved = mockService.isSaved(user?.id, p.id);
+        const profile = await getProfile(p.user_id);
+        const likeCount = await getLikeCount(p.id);
+        const liked = user ? await isLiked(user.id, p.id) : false;
+        const saved = user ? await isSaved(user.id, p.id) : false;
 
         return {
-          ...p,
-          creator: creator || {
-            id: "unknown",
-            username: "unknown",
-            display_name: "Unknown User",
-            avatar_url: null
+          id: p.id,
+          title: p.title,
+          promptText: p.prompt,
+          imageUrl: p.image_url,
+          toolUsed: p.ai_tool,
+          viewCount: p.view_count || 0,
+          copyCount: p.copy_count || 0,
+          createdAt: p.created_at || new Date().toISOString(),
+          tags: p.tags || [],
+          creator: profile ? {
+            id: profile.id,
+            username: profile.username || 'unknown',
+            displayName: profile.full_name || profile.username || 'Unknown',
+            avatarUrl: profile.avatar_url
+          } : {
+            id: p.user_id,
+            username: 'unknown',
+            displayName: 'Unknown User',
+            avatarUrl: null
           },
-          like_count: likeCount,
-          is_liked: isLiked,
-          is_saved: isSaved
+          likeCount: likeCount,
+          isLiked: liked,
+          isSaved: saved
         };
       }));
 
       return enrichedPrompts;
     },
+    // Wait for auth to stabilize before running query
+    enabled: !loading,
   });
 }
 
@@ -93,7 +127,18 @@ export function useTags() {
   return useQuery({
     queryKey: ["tags"],
     queryFn: async () => {
-      return mockService.getTags();
+      // Get all prompts and extract unique tags
+      const { getAllPrompts } = await import('@/services/supabase/prompts');
+      const { prompts, error } = await getAllPrompts(100);
+      
+      if (error || !prompts) return [];
+      
+      const tagsSet = new Set<string>();
+      prompts.forEach(p => {
+        p.tags?.forEach(tag => tagsSet.add(tag));
+      });
+      
+      return Array.from(tagsSet).sort();
     },
   });
 }
@@ -102,33 +147,38 @@ export function useTopCreators(limit = 6) {
   return useQuery({
     queryKey: ["top-creators", limit],
     queryFn: async () => {
-      // Since we don't have a direct list of users in the service interface (private),
-      // we might cheat or add a getTopCreators to mockService.
-      // For now, let's just return the few profiles we know we have by iterating prompts or hardcoded IDs.
-      // Or better, let's add `getPrompts` and aggregate.
+      const { getAllPrompts } = await import('@/services/supabase/prompts');
+      const { getProfile } = await import('@/services/supabase/profiles');
+      const { prompts, error } = await getAllPrompts(200); // Get more prompts to find top creators
 
-      const prompts = await mockService.getPrompts();
-      const creatorIds = Array.from(new Set(prompts.map(p => p.creator_id)));
+      if (error || !prompts) {
+        console.error('Error fetching prompts for top creators:', error);
+        return [];
+      }
+
+      const creatorIds = Array.from(new Set(prompts.map(p => p.user_id)));
 
       const stats = await Promise.all(creatorIds.map(async (id) => {
-        const profile = await mockService.getProfile(id);
+        const profile = await getProfile(id);
         if (!profile) return null;
 
-        const userPrompts = prompts.filter(p => p.creator_id === id);
+        const userPrompts = prompts.filter(p => p.user_id === id);
         const promptCount = userPrompts.length;
-        // Fake follower count based on prompt count or random
-        const followerCount = promptCount * 5 + Math.floor(Math.random() * 50);
 
         return {
-          ...profile,
+          id: profile.id,
+          username: profile.username || 'unknown',
+          displayName: profile.full_name || profile.username || 'Unknown',
+          avatarUrl: profile.avatar_url,
           promptCount,
-          followerCount
         };
       }));
 
-      const validStats = stats.filter((s): s is NonNullable<typeof s> => s !== null);
-
-      return validStats.sort((a, b) => b.followerCount - a.followerCount).slice(0, limit);
+      return stats
+        .filter((s): s is NonNullable<typeof s> => s !== null)
+        .sort((a, b) => b.promptCount - a.promptCount)
+        .slice(0, limit);
     },
   });
 }
+

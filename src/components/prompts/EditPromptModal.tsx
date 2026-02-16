@@ -1,7 +1,6 @@
 
 import { useState, useEffect } from "react";
 import { X, Upload, TrendingUp } from "lucide-react";
-import { mockService } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,18 +128,25 @@ export function EditPromptModal({
         await new Promise(r => setTimeout(r, 500));
       }
 
-      // Update prompt
-      // We are updating Mock Service
-      const updated = await mockService.updatePrompt(prompt.id, {
+      // Update prompt in Supabase
+      const { updatePrompt } = await import('@/services/supabase/prompts');
+      const { supabase } = await import('@/services/supabase/client');
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+      
+      const { prompt: updated, error } = await updatePrompt(prompt.id, user.id, {
         title: title.trim(),
-        prompt_text: promptText.trim(),
-        tool_used: actualTool.trim(),
+        prompt: promptText.trim(),
+        ai_tool: actualTool.trim(),
         image_url: finalImageUrl,
         tags: selectedTags
       });
 
-      if (!updated) {
-        throw new Error("Failed to update prompt");
+      if (error || !updated) {
+        throw new Error(error || "Failed to update prompt");
       }
 
       toast({ title: "Prompt updated successfully" });

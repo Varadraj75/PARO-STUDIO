@@ -13,27 +13,27 @@ import { AuthModal } from "@/components/auth/AuthModal";
 import { getCdnUrl } from "@/config/cdn";
 import { GALLERY_MANIFEST } from "@/config/galleryManifest";
 
-// Convert gallery manifest to prompt format
+// Convert gallery manifest to prompt format (using camelCase to match PromptWithDetails)
 // Images are loaded from CDN: https://cdn.jsdelivr.net/gh/varadraj75/paro-assets/images/hero/
 const MOCK_PROMPTS = GALLERY_MANIFEST.map((item, index) => ({
   id: item.id,
   title: item.title,
-  prompt_text: item.prompt_text,
-  image_url: getCdnUrl("HERO", item.filename), // Using HERO folder from CDN
-  tool_used: item.tool_used,
-  view_count: Math.floor(Math.random() * 20000) + 5000,
-  copy_count: Math.floor(Math.random() * 5000) + 1000,
-  created_at: new Date(Date.now() - 86400000 * (index + 1)).toISOString(),
+  promptText: item.prompt_text,              // camelCase
+  imageUrl: getCdnUrl("HERO", item.filename), // camelCase - Using HERO folder from CDN
+  toolUsed: item.tool_used,                  // camelCase
+  viewCount: Math.floor(Math.random() * 20000) + 5000,
+  copyCount: Math.floor(Math.random() * 5000) + 1000,
+  createdAt: new Date(Date.now() - 86400000 * (index + 1)).toISOString(),
   creator: {
     id: `c${index + 1}`,
     username: `creator_${index + 1}`,
-    display_name: `Creator ${index + 1}`,
-    avatar_url: null
+    displayName: `Creator ${index + 1}`,    // camelCase
+    avatarUrl: null                          // camelCase
   },
   tags: item.tags,
-  like_count: Math.floor(Math.random() * 2000) + 500,
-  is_liked: false,
-  is_saved: false,
+  likeCount: Math.floor(Math.random() * 2000) + 500,
+  isLiked: false,
+  isSaved: false,
 }));
 
 
@@ -70,7 +70,7 @@ export default function Index() {
       result = result.filter(
         (p) =>
           p.title.toLowerCase().includes(query) ||
-          p.prompt_text.toLowerCase().includes(query) ||
+          p.promptText.toLowerCase().includes(query) ||  // camelCase
           p.tags.some((tag) => tag.toLowerCase().includes(query))
       );
     }
@@ -85,16 +85,16 @@ export default function Index() {
     switch (sortBy) {
       case "newest":
         result = [...result].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()  // camelCase
         );
         break;
       case "most_copied":
-        result = [...result].sort((a, b) => b.copy_count - a.copy_count);
+        result = [...result].sort((a, b) => b.copyCount - a.copyCount);  // camelCase
         break;
       case "trending":
       default:
         result = [...result].sort(
-          (a, b) => b.view_count + b.copy_count * 3 + b.like_count * 2 - (a.view_count + a.copy_count * 3 + a.like_count * 2)
+          (a, b) => b.viewCount + b.copyCount * 3 + b.likeCount * 2 - (a.viewCount + a.copyCount * 3 + a.likeCount * 2)  // camelCase
         );
     }
 

@@ -74,30 +74,51 @@ export function injectAdvertisements(
 }
 
 /**
- * Convert raw prompt data to ImageFeedItem format
+ * Convert enriched prompt data from usePrompts to ImageFeedItem format
+ * Transforms camelCase (from usePrompts) to snake_case (for FeedItem)
  */
 export function toImageFeedItem(prompt: {
   id: string;
   title: string;
-  prompt_text: string;
-  image_url: string;
-  tool_used: string;
-  view_count: number;
-  copy_count: number;
-  like_count: number;
-  created_at: string;
+  promptText: string;  // camelCase from usePrompts
+  imageUrl: string;    // camelCase from usePrompts
+  toolUsed: string;    // camelCase from usePrompts
+  viewCount: number;
+  copyCount: number;
+  createdAt: string;
+  tags: string[];
   creator: {
     id: string;
     username: string;
-    display_name: string | null;
-    avatar_url: string | null;
+    displayName: string;  // camelCase from usePrompts
+    avatarUrl: string | null;
   };
-  tags: string[];
-  is_liked: boolean;
-  is_saved: boolean;
+  likeCount: number;
+  isLiked: boolean;
+  isSaved: boolean;
 }): ImageFeedItem {
   return {
     type: "image",
-    data: prompt,
+    data: {
+      id: prompt.id,
+      title: prompt.title,
+      prompt_text: prompt.promptText,          // Transform to snake_case
+      image_url: prompt.imageUrl,              // Transform to snake_case
+      tool_used: prompt.toolUsed,              // Transform to snake_case
+      view_count: prompt.viewCount,
+      copy_count: prompt.copyCount,
+      like_count: prompt.likeCount,
+      created_at: prompt.createdAt,
+      creator: {
+        id: prompt.creator.id,
+        username: prompt.creator.username,
+        display_name: prompt.creator.displayName,  // Transform to snake_case
+        avatar_url: prompt.creator.avatarUrl,
+      },
+      tags: prompt.tags,
+      is_liked: prompt.isLiked,
+      is_saved: prompt.isSaved,
+    },
   };
 }
+
