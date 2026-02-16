@@ -1,10 +1,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { getProfile } from "@/services/supabase/profiles";
-import { mockService } from "@/lib/mockData";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PromptCard } from "@/components/prompts/PromptCard";
@@ -21,6 +20,7 @@ export default function Profile() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, profile: currentUserProfile } = useAuth();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
@@ -43,9 +43,6 @@ export default function Profile() {
         avatar_url: supabaseProfile.avatar_url,
         cover_url: supabaseProfile.cover_url,
         bio: supabaseProfile.bio,
-        website: supabaseProfile.website,
-        twitter: null,
-        instagram: null,
       };
     },
     enabled: !!id,
@@ -56,27 +53,53 @@ export default function Profile() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
-      const allPrompts = await mockService.getPrompts();
+      // Get prompts from Supabase
+      const { getUserPrompts } = await import('@/services/supabase/prompts');
+      const { prompts: userPrompts, error } = await getUserPrompts(profile.id);
 
-      // Filter by creator ID
-      const userPrompts = allPrompts.filter(p => p.creator_id === profile.id);
+      if (error) {
+        console.error('Error fetching user prompts:', error);
+        return [];
+      }
 
-      // Sort
-      userPrompts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // Sort by newest first
+      userPrompts.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+
+      // Enrich with creator data and interaction stats from Supabase
+      const { getProfile } = await import('@/services/supabase/profiles');
+      const { getLikeCount, isLiked: checkIsLiked } = await import('@/services/supabase/likes');
+      const { isSaved: checkIsSaved } = await import('@/services/supabase/saves');
 
       const enriched = await Promise.all(userPrompts.map(async (p) => {
-        const creator = await mockService.getProfile(p.creator_id);
-        const likeCount = mockService.getLikesCount(p.id);
-        const isLiked = mockService.isLiked(currentUserProfile?.id, p.id);
-        const isSaved = mockService.isSaved(currentUserProfile?.id, p.id);
+        const creator = await getProfile(p.user_id);
+        const likeCount = await getLikeCount(p.id);
+        const liked = currentUserProfile ? await checkIsLiked(currentUserProfile.id, p.id) : false;
+        const saved = currentUserProfile ? await checkIsSaved(currentUserProfile.id, p.id) : false;
 
         return {
-          ...p,
-          creator: creator || { id: "unknown", username: "unknown", display_name: "Unknown", avatar_url: null },
+          id: p.id,
+          title: p.title,
+          promptText: p.prompt,
+          imageUrl: p.image_url,
+          toolUsed: p.ai_tool,
+          viewCount: p.view_count || 0,
+          copyCount: p.copy_count || 0,
+          createdAt: p.created_at || new Date().toISOString(),
           tags: p.tags || [],
-          like_count: likeCount,
-          is_liked: isLiked,
-          is_saved: isSaved
+          creator: creator ? {
+            id: creator.id,
+            username: creator.username || 'unknown',
+            displayName: creator.full_name || creator.username || 'Unknown',
+            avatarUrl: creator.avatar_url
+          } : {
+            id: p.user_id,
+            username: 'unknown',
+            displayName: 'Unknown User',
+            avatarUrl: null
+          },
+          likeCount: likeCount,
+          isLiked: liked,
+          isSaved: saved
         };
       }));
 
@@ -85,22 +108,31 @@ export default function Profile() {
     enabled: !!profile?.id,
   });
 
-  // Check follow status and get follower count
-  useEffect(() => {
-    async function checkFollowStatus() {
-      if (!profile?.id) return;
-
-      const count = mockService.getFollowerCount(profile.id);
-      setFollowerCount(count);
-
-      if (currentUserProfile?.id) {
-        const following = mockService.isFollowing(currentUserProfile.id, profile.id);
-        setIsFollowing(following);
+  // Check follow status and get follower count using React Query
+  const { data: followerData } = useQuery({
+    queryKey: ["follower-count", profile?.id, currentUserProfile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return { count: 0, following: false };
+      
+      const { getFollowerCount, isFollowing: checkIsFollowing } = await import('@/services/supabase/follows');
+      const count = await getFollowerCount(profile.id);
+      
+      if (currentUserProfile) {
+        const following = await checkIsFollowing(currentUserProfile.id, profile.id);
+        return { count, following };
       }
-    }
+      
+      return { count, following: false };
+    },
+    enabled: !!profile?.id,
+  });
 
-    checkFollowStatus();
-  }, [profile?.id, currentUserProfile?.id]);
+  useEffect(() => {
+    if (followerData) {
+      setFollowerCount(followerData.count);
+      setIsFollowing(followerData.following);
+    }
+  }, [followerData]);
 
   const handleFollow = async () => {
     if (!user) {
@@ -117,7 +149,11 @@ export default function Profile() {
     setIsFollowing(newFollowing);
     setFollowerCount((prev) => (newFollowing ? prev + 1 : prev - 1));
 
-    await mockService.toggleFollow(currentUserProfile.id, profile.id);
+    const { toggleFollow } = await import('@/services/supabase/follows');
+    await toggleFollow(currentUserProfile.id, profile.id);
+    
+    // Invalidate queries
+    queryClient.invalidateQueries({ queryKey: ['follower-count', profile.id] });
   };
 
 
@@ -207,42 +243,7 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Social Links */}
-            <div className="flex items-center justify-center gap-3 sm:gap-4 mb-4 sm:mb-6 flex-wrap">
-              {profile.website && (
-                <a
-                  href={profile.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground transition-colors p-2"
-                  aria-label="Website"
-                >
-                  <ExternalLink className="h-4 sm:h-5 w-4 sm:w-5" />
-                </a>
-              )}
-              {profile.twitter && (
-                <a
-                  href={`https://twitter.com/${profile.twitter}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground text-xs sm:text-sm transition-colors"
-                >
-                  @{profile.twitter}
-                </a>
-              )}
-              {profile.instagram && (
-                <a
-                  href={`https://instagram.com/${profile.instagram}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-muted-foreground hover:text-foreground text-xs sm:text-sm transition-colors"
-                >
-                  @{profile.instagram}
-                </a>
-              )}
-            </div>
-
-            {/* Follow Button */}
+            {/* Action Buttons */}
             {!isOwnProfile && (
               <Button
                 onClick={handleFollow}

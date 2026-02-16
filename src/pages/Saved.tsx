@@ -1,9 +1,7 @@
-
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Bookmark } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { mockService } from "@/lib/mockData";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PromptCard } from "@/components/prompts/PromptCard";
@@ -12,34 +10,59 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Saved() {
   const { user, session, profile, loading } = useAuth();
 
-  // Fetch saved prompts
+  // Fetch saved prompts from Supabase
   const { data: savedPrompts, isLoading, refetch } = useQuery({
-    queryKey: ["saved-prompts", profile?.id],
+    queryKey: ["saved-prompts", user?.id],
     queryFn: async () => {
-      if (!profile?.id) return [];
+      if (!user?.id) return [];
 
-      const allPrompts = await mockService.getPrompts();
+      // Get saved prompts from Supabase
+      const { getUserSaves } = await import('@/services/supabase/saves');
+      const { getProfile } = await import('@/services/supabase/profiles');
+      const { isLiked } = await import('@/services/supabase/likes');
 
-      // Filter for saved prompts
-      const saved = allPrompts.filter(p => mockService.isSaved(profile.id, p.id));
+      const { prompts, error } = await getUserSaves(user.id);
+      
+      if (error) {
+        console.error('Error fetching saved prompts:', error);
+        return [];
+      }
 
-      const enriched = await Promise.all(saved.map(async (p) => {
-        const creator = await mockService.getProfile(p.creator_id);
-        const likeCount = mockService.getLikesCount(p.id);
-        const isLiked = mockService.isLiked(profile.id, p.id);
+      // Enrich with creator and like status
+      const enriched = await Promise.all(prompts.map(async (p: any) => {
+        const creator = await getProfile(p.user_id);
+        const liked = await isLiked(user.id, p.id);
 
         return {
-          ...p,
-          creator: creator || { id: "unknown", username: "unknown", display_name: "Unknown", avatar_url: null },
-          like_count: likeCount,
-          is_liked: isLiked,
-          is_saved: true
+          id: p.id,
+          title: p.title,
+          promptText: p.prompt,
+          imageUrl: p.image_url,
+          toolUsed: p.ai_tool,
+          viewCount: p.view_count || 0,
+          copyCount: p.copy_count || 0,
+          createdAt: p.created_at,
+          tags: p.tags || [],
+          creator: creator ? {
+            id: creator.id,
+            username: creator.username || 'unknown',
+            displayName: creator.full_name || creator.username || 'Unknown',
+            avatarUrl: creator.avatar_url
+          } : {
+            id: p.user_id,
+            username: 'unknown',
+            displayName: 'Unknown User',
+            avatarUrl: null
+          },
+          likeCount: 0, // Will be fetched by PromptCard if needed
+          isLiked: liked,
+          isSaved: true // Always true on this page
         };
       }));
 
       return enriched;
     },
-    enabled: !!profile?.id,
+    enabled: !!user?.id,
   });
 
   // Auth guard: wait for loading, then check session

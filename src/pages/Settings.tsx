@@ -2,7 +2,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { mockService } from "@/lib/mockData";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -24,9 +23,6 @@ export default function Settings() {
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [website, setWebsite] = useState("");
-  const [twitter, setTwitter] = useState("");
-  const [instagram, setInstagram] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -39,9 +35,6 @@ export default function Settings() {
       setUsername(profile.username || "");
       setDisplayName(profile.display_name || "");
       setBio(profile.bio || "");
-      setWebsite(profile.website || "");
-      setTwitter(profile.twitter || "");
-      setInstagram(profile.instagram || "");
       setAvatarUrl(profile.avatar_url);
       setCoverUrl(profile.cover_url || null);
     }
@@ -51,38 +44,69 @@ export default function Settings() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Invalid file type", description: "Please select an image", variant: "destructive" });
-      return;
-    }
+    // Import storage service dynamically
+    const { uploadAvatar } = await import('@/services/supabase/storage');
+    const { updateProfile } = await import('@/services/supabase/profiles');
 
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Avatar must be less than 2MB", variant: "destructive" });
-      return;
-    }
+    setIsSubmitting(true);
 
-    // Show preview immediately
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAvatarPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Upload to Supabase Storage
+      const { url, error } = await uploadAvatar(user.id, file);
 
-    // Image upload temporarily disabled - backend migration in progress
-    toast({ 
-      title: "Upload temporarily disabled", 
-      description: "Image uploads are being migrated to a secure backend. Please check back soon!",
-      variant: "destructive"
-    });
+      if (error) {
+        toast({ 
+          title: "Upload  failed", 
+          description: error,
+          variant: "destructive" 
+        });
+        return;
+      }
 
-    // Clear preview after showing message
-    setTimeout(() => {
-      setAvatarPreview(null);
-    }, 2000);
+      if (!url) {
+        toast({ 
+          title: "Upload failed", 
+          description: "Could not get upload URL",
+          variant: "destructive" 
+        });
+        return;
+      }
 
-    // Reset file input to allow re-selection
-    if (avatarInputRef.current) {
-      avatarInputRef.current.value = "";
+      // Update profile in database
+      const { profile: updatedProfile, error: updateError } = await updateProfile(user.id, {
+        avatar_url: url
+      });
+
+      if (updateError) {
+        toast({ 
+          title: "Update failed", 
+          description: updateError.message,
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      // Update local state
+      setAvatarUrl(url);
+      setAvatarPreview(url);
+      
+      // Refresh profile in auth context
+      await refreshProfile();
+
+      toast({ title: "Avatar updated successfully!" });
+    } catch (error: any) {
+      console.error('Avatar upload error:', error);
+      toast({ 
+        title: "Upload failed", 
+        description: error.message || "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSubmitting(false);
+      // Reset file input
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
     }
   };
 
@@ -90,105 +114,142 @@ export default function Settings() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Invalid file type", description: "Please select an image", variant: "destructive" });
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Cover must be less than 5MB", variant: "destructive" });
-      return;
-    }
-
-    // Show preview immediately
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setCoverPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    // Image upload temporarily disabled - backend migration in progress
-    toast({ 
-      title: "Upload temporarily disabled", 
-      description: "Image uploads are being migrated to a secure backend. Please check back soon!",
-      variant: "destructive"
-    });
-
-    // Clear preview after showing message
-    setTimeout(() => {
-      setCoverPreview(null);
-    }, 2000);
-
-    // Reset file input to allow re-selection
-    if (coverInputRef.current) {
-      coverInputRef.current.value = "";
-    }
-  };
-
-  const checkUsernameAvailability = async (newUsername: string) => {
-    if (!newUsername || newUsername === profile?.username) {
-      setUsernameError("");
-      return true;
-    }
-
-    // Validate format
-    if (!/^[a-z0-9_]+$/.test(newUsername)) {
-      setUsernameError("Only lowercase letters, numbers, and underscores");
-      return false;
-    }
-
-    if (newUsername.length < 3) {
-      setUsernameError("Username must be at least 3 characters");
-      return false;
-    }
-
-    const data = await mockService.getProfileByUsername(newUsername);
-
-    if (data && data.id !== user?.id) {
-      setUsernameError("Username already taken");
-      return false;
-    }
-
-    setUsernameError("");
-    return true;
-  };
-
-  // Helper function to remove cache-busting query parameters
-  const stripCacheBusting = (url: string | null): string | null => {
-    if (!url) return null;
-    return url.split('?')[0];
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Auth check: only verify user is authenticated
-    if (!user) return;
-
-    const isUsernameValid = await checkUsernameAvailability(username);
-    if (!isUsernameValid) return;
+    // Import storage service dynamically
+    const { uploadBanner } = await import('@/services/supabase/storage');
+    const { updateProfile } = await import('@/services/supabase/profiles');
 
     setIsSubmitting(true);
 
     try {
-      const updatedProfile = await mockService.updateProfile(user.id, {
-        username: username.toLowerCase(),
-        display_name: displayName,
-        bio,
-        website,
-        twitter,
-        instagram,
-        avatar_url: stripCacheBusting(avatarUrl),
-        cover_url: stripCacheBusting(coverUrl),
+      // Upload to Supabase Storage
+      const { url, error } = await uploadBanner(user.id, file);
+
+      if (error) {
+        toast({ 
+          title: "Upload failed", 
+          description: error,
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      if (!url) {
+        toast({ 
+          title: "Upload failed", 
+          description: "Could not get upload URL",
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      // Update profile in database
+      const { profile: updatedProfile, error: updateError } = await updateProfile(user.id, {
+        cover_url: url
       });
 
-      if (!updatedProfile) throw new Error("Failed to update profile");
+      if (updateError) {
+        toast({ 
+          title: "Update failed", 
+          description: updateError.message,
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      // Update local state
+      setCoverUrl(url);
+      setCoverPreview(url);
+      
+      // Refresh profile in auth context
+      await refreshProfile();
+
+      toast({ title: "Banner updated successfully!" });
+    } catch (error: any) {
+      console.error('Banner upload error:', error);
+      toast({ 
+        title: "Upload failed", 
+        description: error.message || "Unknown error",
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSubmitting(false);
+      // Reset file input
+      if (coverInputRef.current) {
+        coverInputRef.current.value = "";
+      }
+    }
+  };
+
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!user) return;
+
+    // Validate username format
+    if (username && !/^[a-z0-9_]+$/.test(username)) {
+      setUsernameError("Only lowercase letters, numbers, and underscores");
+      return;
+    }
+
+    if (username && username.length < 3) {
+      setUsernameError("Username must be at least 3 characters");
+      return;
+    }
+
+    // Validate bio length
+    if (bio.length > 300) {
+      toast({ 
+        title: "Bio too long", 
+        description: "Bio must be 300 characters or less",
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { updateProfile } = await import('@/services/supabase/profiles');
+
+      const { profile: updatedProfile, error } = await updateProfile(user.id, {
+        username: username.toLowerCase() || null,
+        full_name: displayName || null,
+        bio: bio || null
+      });
+
+      if (error) {
+        // Handle specific errors
+        if (error.code === '23505' || error.message === 'Username already taken') {
+          setUsernameError("Username already taken");
+          toast({ 
+            title: "Username taken", 
+            description: "Please choose a different username",
+            variant: "destructive" 
+          });
+          return;
+        }
+
+        toast({ 
+          title: "Update failed", 
+          description: error.message,
+          variant: "destructive" 
+        });
+        return;
+      }
 
       await refreshProfile();
       toast({ title: "Profile updated successfully!" });
+      
+      // Navigate to profile page
       navigate(`/profile/${user.id}`);
     } catch (error: any) {
-      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      console.error('Profile update error:', error);
+      toast({ 
+        title: "Update failed", 
+        description: error.message || "Unknown error",
+        variant: "destructive" 
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -301,15 +362,13 @@ export default function Settings() {
                 <Label htmlFor="username">Username</Label>
                 <Input
                   id="username"
-                  placeholder="your_username"
+                  placeholder="username"
                   value={username}
                   onChange={(e) => {
                     setUsername(e.target.value.toLowerCase());
-                    checkUsernameAvailability(e.target.value.toLowerCase());
+                    setUsernameError("");
                   }}
-                  required
-                  className="bg-secondary/50 border-0"
-                />
+                  className={`bg-secondary/50 border-0 ${usernameError ? "border-destructive border" : ""}`}           />
                 {usernameError && (
                   <p className="text-sm text-destructive">{usernameError}</p>
                 )}
@@ -345,36 +404,6 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground text-right">{bio.length}/300</p>
               </div>
 
-              {/* Social Links */}
-              <div className="space-y-4">
-                <Label>Social Links</Label>
-                <div className="space-y-3">
-                  <Input
-                    placeholder="Website URL"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    className="bg-secondary/50 border-0"
-                  />
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm">@</span>
-                    <Input
-                      placeholder="Twitter username"
-                      value={twitter}
-                      onChange={(e) => setTwitter(e.target.value)}
-                      className="bg-secondary/50 border-0"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm">@</span>
-                    <Input
-                      placeholder="Instagram username"
-                      value={instagram}
-                      onChange={(e) => setInstagram(e.target.value)}
-                      className="bg-secondary/50 border-0"
-                    />
-                  </div>
-                </div>
-              </div>
 
               {/* Submit */}
               <div className="flex gap-3">

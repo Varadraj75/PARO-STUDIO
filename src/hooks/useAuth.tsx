@@ -1,10 +1,10 @@
-
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { mockService, UserProfile } from "@/lib/mockData";
-import * as supabaseAuth from "@/services/supabase/auth";
-import { getProfile } from "@/services/supabase/profiles";
-import type { User as SupabaseUser, Session } from "@supabase/supabase-js";
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '@/services/supabase/client';
+import * as supabaseAuth from '@/services/supabase/auth';
+import { getProfile } from '@/services/supabase/profiles';
+import { UserProfile } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
 
 // User type compatible with both Supabase and mock
 interface User {
@@ -19,12 +19,14 @@ interface User {
  * - session: Supabase session (synchronous after init)
  * - profile: User profile data (ASYNC, can be null even when authenticated)
  * - loading: True during auth initialization and state changes
+ * - needsProfileCompletion: True if user is authenticated but has no username
  */
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: UserProfile | null;
   loading: boolean;
+  needsProfileCompletion: boolean;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signInWithGoogle: () => Promise<{ error: Error | null }>;
@@ -42,11 +44,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   const fetchProfile = async (userId: string) => {
+    console.log('🔍 fetchProfile: Starting for userId:', userId);
     try {
-      // Try Supabase profile first
+      // First, ensure profile exists in database (creates if doesn't exist)
+      const currentUser = await supabaseAuth.getCurrentUser();
+      console.log('🔍 fetchProfile: getCurrentUser result:', currentUser ? 'User found' : 'No user');
+      
+      if (currentUser) {
+        console.log('🔍 fetchProfile: Calling ensureProfile for user:', currentUser.id);
+        const { profile: supabaseProfile, error } = await supabaseAuth.ensureProfile(currentUser);
+        
+        console.log('🔍 fetchProfile: ensureProfile returned:', {
+          hasProfile: !!supabaseProfile,
+          hasError: !!error,
+          error: error,
+          profileData: supabaseProfile
+        });
+
+        if (error) {
+          console.error("❌ fetchProfile: Error ensuring profile:", error);
+          return null;
+        }
+
+        if (supabaseProfile) {
+          console.log('✅ fetchProfile: Converting Supabase profile to UserProfile format');
+          // Convert Supabase profile to UserProfile format
+          const userProfile = {
+            id: supabaseProfile.id,
+            username: supabaseProfile.username,
+            display_name: supabaseProfile.full_name || supabaseProfile.username || null,
+            avatar_url: supabaseProfile.avatar_url,
+            cover_url: supabaseProfile.cover_url,
+            bio: supabaseProfile.bio,
+          };
+          console.log('✅ fetchProfile: Returning profile:', userProfile);
+          return userProfile;
+        }
+      }
+
+      // Fallback: try to fetch existing profile directly
+      console.log('⚠️ fetchProfile: Fallback - trying getProfile directly');
       const supabaseProfile = await getProfile(userId);
       if (supabaseProfile) {
-        // Convert Supabase profile to UserProfile format
+        console.log('✅ fetchProfile: Found profile via direct fetch');
         return {
           id: supabaseProfile.id,
           username: supabaseProfile.username,
@@ -54,16 +94,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatar_url: supabaseProfile.avatar_url,
           cover_url: supabaseProfile.cover_url,
           bio: supabaseProfile.bio,
-          website: supabaseProfile.website,
-          twitter: null,
-          instagram: null,
         };
       }
 
-      // If Supabase profile doesn't exist, return null
+      console.error('❌ fetchProfile: No profile found - returning null');
       return null;
     } catch (error) {
-      console.error("Error fetching profile:", error);
+      console.error("❌ fetchProfile: Exception caught:", error);
       return null;
     }
   };
@@ -76,79 +113,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Initialize auth state
-    const initAuth = async () => {
-      try {
-        // Get current session from Supabase
-        const currentSession = await supabaseAuth.getSession();
-        
-        if (!currentSession) {
-          // 🔥 CRITICAL: Clear stale auth state when getSession() returns null
-          // This prevents stale refresh token loops that break logout
-          await supabaseAuth.signOut();
-          setUser(null);
-          setSession(null);
-          setProfile(null);
-        } else {
-          const userObj: User = {
-            id: currentSession.user.id,
-            email: currentSession.user.email,
-          };
-          
-          setUser(userObj);
-          setSession(currentSession);
-          
-          // On page load, ensure profile exists (safe now with fixed RLS logic)
-          // This handles the case where user refreshes and has a session but no profile
-          const { profile: profileData } = await supabaseAuth.ensureProfile(currentSession.user);
-          setProfile(profileData);
-        }
-      } catch (error) {
-        console.error("Error initializing auth:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    console.log('🚀 useAuth: Setting up auth subscription');
 
-    initAuth();
-
-    // Subscribe to auth changes
-    const subscription = supabaseAuth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event);
+    // Subscribe to auth changes - this handles ALL auth state including initial session
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔔 Auth event:', event, session ? `Session for ${session.user.email}` : 'No session');
       
       try {
-        // Set loading during auth state changes to prevent flashing
-        setLoading(true);
-        
-        if (session?.user) {
-          const userObj: User = {
-            id: session.user.id,
-            email: session.user.email,
-          };
-          
-          setUser(userObj);
-          setSession(session);
-          
-          // Ensure profile exists only on SIGNED_IN (new login)
-          // INITIAL_SESSION is already handled in initAuth()
-          if (event === 'SIGNED_IN') {
-            await supabaseAuth.ensureProfile(session.user);
+        if (event === 'INITIAL_SESSION') {
+          // Page load/refresh - restore session if exists
+          console.log('🔔 INITIAL_SESSION: Restoring session');
+          if (session?.user) {
+            const userObj: User = {
+              id: session.user.id,
+              email: session.user.email,
+            };
+            
+            console.log('🔔 INITIAL_SESSION: User found:', userObj.id);
+            setUser(userObj);
+            setSession(session);
+            
+            // Fetch/create profile
+            console.log('🔔 INITIAL_SESSION: Fetching profile');
+            const profileData = await fetchProfile(session.user.id);
+            console.log('🔔 INITIAL_SESSION: Profile result:', profileData ? 'Found' : 'Not found');
+            setProfile(profileData);
+          } else {
+            console.log('🔔 INITIAL_SESSION: No session, user is signed out');
+            setUser(null);
+            setSession(null);
+            setProfile(null);
           }
-          
-          const profileData = await fetchProfile(session.user.id);
-          setProfile(profileData);
-        } else {
+          // Clear loading after initial session is processed
+          setLoading(false);
+        } else if (event === 'SIGNED_IN') {
+          // New login
+          console.log('🔔 SIGNED_IN: New authentication');
+          if (session?.user) {
+            const userObj: User = {
+              id: session.user.id,
+              email: session.user.email,
+            };
+            
+            console.log('🔔 SIGNED_IN: User authenticated:', userObj.id);
+            setUser(userObj);
+            setSession(session);
+            
+            // Fetch/create profile
+            console.log('🔔 SIGNED_IN: Fetching profile');
+            const profileData = await fetchProfile(session.user.id);
+            console.log('🔔 SIGNED_IN: Profile result:', profileData ? 'Found' : 'Not found');
+            setProfile(profileData);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          // Logout
+          console.log('🔔 SIGNED_OUT: Clearing auth state');
           setUser(null);
           setSession(null);
           setProfile(null);
+        } else if (event === 'TOKEN_REFRESHED') {
+          // Token refresh - update session but keep user/profile
+          console.log('🔔 TOKEN_REFRESHED: Updating session');
+          if (session) {
+            setSession(session);
+          }
+        } else if (event === 'USER_UPDATED') {
+          // User metadata updated
+          console.log('🔔 USER_UPDATED: Refreshing profile');
+          if (session?.user) {
+            const profileData = await fetchProfile(session.user.id);
+            setProfile(profileData);
+          }
         }
-      } finally {
-        // Clear loading after auth state is fully updated
-        setLoading(false);
+      } catch (error) {
+        console.error('❌ Auth event handler error:', error);
       }
     });
 
     return () => {
+      console.log('🚀 useAuth: Cleaning up auth subscription');
       subscription.unsubscribe();
     };
   }, []);
@@ -225,6 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         profile,
         loading,
+        needsProfileCompletion: !!user && (!profile || !profile.username),
         signUp,
         signIn,
         signInWithGoogle,

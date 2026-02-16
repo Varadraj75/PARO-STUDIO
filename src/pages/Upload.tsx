@@ -2,7 +2,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { mockService } from "@/lib/mockData";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -71,11 +70,11 @@ export default function UploadPrompt() {
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size (max 3MB)
+    if (file.size > 3 * 1024 * 1024) {
       toast({
         title: "File too large",
-        description: "Image must be less than 5MB",
+        description: "Image must be less than 3MB",
         variant: "destructive",
       });
       return;
@@ -121,7 +120,9 @@ export default function UploadPrompt() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Auth check: only verify user is authenticated, not profile existence
+    // ===== VALIDATION =====
+    
+    // 1. Auth check
     if (!user) {
       toast({
         title: "Authentication required",
@@ -131,17 +132,8 @@ export default function UploadPrompt() {
       return;
     }
 
-    if (tags.length < 3) {
-      toast({
-        title: "More tags needed",
-        description: "Please add at least 3 tags",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate image (either file or URL)
-    if (!useUrl && !imageFile) {
+    // 2. Image required
+    if (!imageFile) {
       toast({
         title: "Image required",
         description: "Please select an image to upload",
@@ -150,56 +142,170 @@ export default function UploadPrompt() {
       return;
     }
 
-    if (useUrl && !imageUrl.trim()) {
+    // 3. Image size check (3MB max - already validated but double-check)
+    if (imageFile.size > 3 * 1024 * 1024) {
       toast({
-        title: "Image URL required",
-        description: "Please enter an image URL",
+        title: "Image too large",
+        description: "Image must be less than 3MB",
         variant: "destructive",
       });
       return;
     }
 
+    // 4. Title required
+    if (!title.trim()) {
+      toast({
+        title: "Title required",
+        description: "Please enter a title for your prompt",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 5. Prompt text required
+    if (!promptText.trim()) {
+      toast({
+        title: "Prompt required",
+        description: "Please enter the prompt text",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 6. AI Tool required
+    const actualTool = getActualToolName();
+    if (!actualTool) {
+      toast({
+        title: "AI Tool required",
+        description: "Please select the AI tool you used",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 7. Minimum 3 tags
+    if (tags.length < 3) {
+      toast({
+        title: "More tags needed",
+        description: "Please add at least 3 tags to help others discover your prompt",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // ===== UPLOAD FLOW =====
+    
     setIsSubmitting(true);
+    let uploadedImageUrl: string | null = null;
 
     try {
-      let finalImageUrl = imageUrl;
+      console.log('🚀 Starting prompt upload flow');
 
-      // If using file upload, show message that it's temporarily disabled
-      if (!useUrl && imageFile) {
+      // STEP 1: Upload image to Supabase Storage
+      const { uploadPromptImage } = await import('@/services/supabase/storage');
+      const { url, error: uploadError } = await uploadPromptImage(user.id, imageFile);
+
+      if (uploadError || !url) {
         toast({
-          title: "File upload temporarily disabled",
-          description: "Image uploads are being migrated to a secure backend. Please use 'Use URL instead' option for now.",
-          variant: "destructive"
+          title: "Image upload failed",
+          description: uploadError || "Could not upload image to storage",
+          variant: "destructive",
         });
-        setIsSubmitting(false);
         return;
       }
 
-      // Create the prompt with the image URL
-      const newPrompt = await mockService.createPrompt({
-        creator_id: profile.id,
-        title,
-        prompt_text: promptText,
-        image_url: finalImageUrl,
-        tool_used: getActualToolName(),
+      uploadedImageUrl = url;
+      console.log('✅ Image uploaded to storage:', uploadedImageUrl);
+
+      // STEP 2: Insert into database with explicit user_id
+      const { createPrompt } = await import('@/services/supabase/prompts');
+      
+      const { prompt, error: dbError } = await createPrompt({
+        user_id: user.id, // CRITICAL: explicit user_id for RLS
+        title: title.trim(),
+        prompt: promptText.trim(),
+        image_url: uploadedImageUrl,
+        ai_tool: actualTool,
         tags: tags
       });
 
+      if (dbError || !prompt) {
+        console.error('❌ Database insert failed:', dbError);
+        
+        // CLEANUP: Delete uploaded image since DB insert failed
+        console.log('🗑️ Cleaning up orphaned image...');
+        const { deletePromptImage } = await import('@/services/supabase/storage');
+        await deletePromptImage(uploadedImageUrl);
+        
+        toast({
+          title: "Upload failed",
+          description: dbError?.message || "Could not save prompt to database",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // CRITICAL VERIFICATION: Ensure prompt has id and user_id
+      console.log('🔍 VERIFICATION: Checking inserted prompt data...');
+      console.log('📊 Prompt ID:', prompt.id);
+      console.log('📊 Prompt user_id:', prompt.user_id);
+      console.log('📊 Current user ID:', user.id);
+      console.log('📊 Full inserted prompt:', prompt);
+
+      if (!prompt.id) {
+        console.error('❌ CRITICAL ERROR: Inserted prompt has no ID!');
+        toast({
+          title: "Upload failed",
+          description: "Prompt was created but has no ID",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!prompt.user_id) {
+        console.error('❌ WARNING: Inserted prompt has no user_id!');
+      }
+
+      if (prompt.user_id !== user.id) {
+        console.error('❌ WARNING: user_id mismatch!', {
+          expected: user.id,
+          actual: prompt.user_id
+        });
+      }
+
+      console.log('✅ Prompt created successfully with ID:', prompt.id);
+
+      // SUCCESS
       toast({
-        title: "Prompt uploaded successfully!",
-        description: "Your prompt has been created"
+        title: "Success!",
+        description: "Your prompt has been uploaded successfully"
       });
-      navigate(`/prompt/${newPrompt.id}`);
+
+      // Redirect to prompt detail page using the returned ID
+      console.log('🔀 Navigating to /prompt/' + prompt.id);
+      navigate(`/prompt/${prompt.id}`, { replace: true });
+      
     } catch (error: any) {
-      console.error("Upload error:", error);
+      console.error('❌ Unexpected upload error:', error);
+
+      // CLEANUP: If we uploaded an image but error occurred, clean it up
+      if (uploadedImageUrl) {
+        try {
+          const { deletePromptImage } = await import('@/services/supabase/storage');
+          await deletePromptImage(uploadedImageUrl);
+          console.log('🗑️ Cleaned up orphaned image after error');
+        } catch (cleanupError) {
+          console.error('❌ Failed to cleanup image:', cleanupError);
+        }
+      }
+
       toast({
         title: "Upload failed",
-        description: error.message,
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
       });
     } finally {
       setIsSubmitting(false);
-      setIsUploading(false);
     }
   };
 

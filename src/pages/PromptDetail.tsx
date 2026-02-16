@@ -1,9 +1,8 @@
 
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Heart, Bookmark, Check, ArrowLeft } from "lucide-react";
-import { mockService } from "@/lib/mockData";
 import { useAuth } from "@/hooks/useAuth";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -18,6 +17,7 @@ import { AuthModal } from "@/components/auth/AuthModal";
 export default function PromptDetail() {
   const { id } = useParams<{ id: string }>();
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
@@ -29,31 +29,56 @@ export default function PromptDetail() {
     queryKey: ["prompt", id, user?.id],
     queryFn: async () => {
       if (!id) return null;
-      const data = await mockService.getPrompt(id);
 
-      if (!data) return null;
+      // Get prompt from Supabase
+      const { getPrompt } = await import('@/services/supabase/prompts');
+      const { prompt: data, error } = await getPrompt(id);
+      
+      if (error || !data) {
+        console.error('Error fetching prompt:', error);
+        return null;
+      }
 
-      // Increment view count (mock)
-      // await supabase... (skipped, we don't have updatePrompt exposed fully but view count isn't critical for mock)
+      // Get enrichment data from Supabase
+      const { getProfile } = await import('@/services/supabase/profiles');
+      const { getLikeCount, isLiked: checkIsLiked } = await import('@/services/supabase/likes');
+      const { isSaved: checkIsSaved } = await import('@/services/supabase/saves');
 
-      const creator = await mockService.getProfile(data.creator_id);
+      const creator = await getProfile(data.user_id);
+      const likeCount = await getLikeCount(id);
+      const liked = user ? await checkIsLiked(user.id, id) : false;
+      const saved = user ? await checkIsSaved(user.id, id) : false;
 
-      const likeCount = mockService.getLikesCount(id);
-      const isLiked = mockService.isLiked(user?.id, id);
-      const isSaved = mockService.isSaved(user?.id, id);
-
+      // Normalize to clean camelCase UI shape - NO spread operator
       const result = {
-        ...data,
-        creator: creator || { id: "unknown", username: "unknown", display_name: "Unknown", avatar_url: null },
+        id: data.id,
+        title: data.title,
+        promptText: data.prompt,
+        imageUrl: data.image_url,
+        toolUsed: data.ai_tool,
+        viewCount: data.view_count || 0,
+        copyCount: data.copy_count || 0,
+        createdAt: data.created_at || new Date().toISOString(),
         tags: data.tags || [],
-        like_count: likeCount,
-        is_liked: isLiked,
-        is_saved: isSaved,
+        creator: creator ? {
+          id: creator.id,
+          username: creator.username || 'unknown',
+          displayName: creator.full_name || creator.username || 'Unknown',
+          avatarUrl: creator.avatar_url
+        } : {
+          id: data.user_id,
+          username: 'unknown',
+          displayName: 'Unknown User',
+          avatarUrl: null
+        },
+        likeCount: likeCount,
+        isLiked: liked,
+        isSaved: saved,
       };
 
-      setIsLiked(result.is_liked);
-      setIsSaved(result.is_saved);
-      setLikeCount(result.like_count);
+      setIsLiked(result.isLiked);
+      setIsSaved(result.isSaved);
+      setLikeCount(result.likeCount);
 
       return result;
     },
@@ -66,29 +91,57 @@ export default function PromptDetail() {
     queryFn: async () => {
       if (!prompt?.tags || prompt.tags.length === 0 || !id) return [];
 
-      const allPrompts = await mockService.getPrompts();
+      // Get related prompts from Supabase
+      const { getAllPrompts } = await import('@/services/supabase/prompts');
+      const { prompts: relatedPrompts, error: relatedError } = await getAllPrompts(50);
+      
+      if (relatedError) {
+        console.error('Error fetching related prompts:', relatedError);
+      }
+      
+      const filteredRelated = (relatedPrompts || [])
+        .filter((p) => p.id !== id && p.tags && prompt.tags && p.tags.some((tag) => prompt.tags!.includes(tag)))
+        .slice(0, 4);
 
-      // Filter excluding current and matching tags
-      const filtered = allPrompts.filter(p =>
-        p.id !== id && p.tags.some(t => prompt.tags.includes(t))
-      ).slice(0, 12);
+      const enrichedRelated = await Promise.all(
+        filteredRelated.map(async (p) => {
+          const { getProfile } = await import('@/services/supabase/profiles');
+          const { isLiked: checkIsLiked } = await import('@/services/supabase/likes');
+          const { isSaved: checkIsSaved } = await import('@/services/supabase/saves');
+          
+          const creator = await getProfile(p.user_id);
+          const liked = user ? await checkIsLiked(user.id, p.id) : false;
+          const saved = user ? await checkIsSaved(user.id, p.id) : false;
 
-      // Transform
-      const enriched = await Promise.all(filtered.map(async (p) => {
-        const creator = await mockService.getProfile(p.creator_id);
-        const isLiked = mockService.isLiked(user?.id, p.id);
-        const isSaved = mockService.isSaved(user?.id, p.id);
-
-        return {
-          ...p,
-          creator: creator || { id: "unknown", username: "unknown", display_name: "Unknown", avatar_url: null },
-          like_count: mockService.getLikesCount(p.id),
-          is_liked: isLiked,
-          is_saved: isSaved
-        };
+          // Normalize to clean camelCase UI shape
+          return {
+            id: p.id,
+            title: p.title,
+            promptText: p.prompt,
+            imageUrl: p.image_url,
+            toolUsed: p.ai_tool,
+            viewCount: p.view_count || 0,
+            copyCount: p.copy_count || 0,
+            createdAt: p.created_at || new Date().toISOString(),
+            tags: p.tags || [],
+            creator: creator ? {
+              id: creator.id,
+              username: creator.username ||'unknown',
+              displayName: creator.full_name || creator.username || 'Unknown',
+              avatarUrl: creator.avatar_url
+            } : {
+              id: p.user_id,
+              username: 'unknown',
+              displayName: 'Unknown User',
+              avatarUrl: null
+            },
+            likeCount: 0,
+            isLiked: liked,
+            isSaved: saved
+          };
       }));
 
-      return enriched;
+      return enrichedRelated;
     },
     enabled: !!prompt?.tags && prompt.tags.length > 0,
   });
@@ -101,10 +154,11 @@ export default function PromptDetail() {
       return;
     }
 
-    await navigator.clipboard.writeText(prompt.prompt_text);
+    await navigator.clipboard.writeText(prompt.promptText);
     setCopied(true);
 
-    await mockService.incrementCopyCount(prompt.id);
+    const { incrementCopyCount } = await import('@/services/supabase/prompts');
+    await incrementCopyCount(prompt.id);
 
     setTimeout(() => setCopied(false), 2000);
     toast({ title: "Prompt copied to clipboard" });
@@ -119,19 +173,18 @@ export default function PromptDetail() {
       return;
     }
 
-    if (!profile || !prompt) {
-      toast({
-        title: "Profile loading",
-        description: "Please wait for your profile to load",
-      });
-      return;
-    }
+    if (!prompt) return;
 
     const newLiked = !isLiked;
     setIsLiked(newLiked);
     setLikeCount((prev) => (newLiked ? prev + 1 : prev - 1));
 
-    await mockService.toggleLike(profile.id, prompt.id);
+    const { toggleLike } = await import('@/services/supabase/likes');
+    await toggleLike(user.id, prompt.id);
+    
+    // Invalidate queries
+    queryClient.invalidateQueries({ queryKey: ['prompt', id] });
+    queryClient.invalidateQueries({ queryKey: ['prompts'] });
   };
 
   const handleSave = async () => {
@@ -143,18 +196,17 @@ export default function PromptDetail() {
       return;
     }
 
-    if (!profile || !prompt) {
-      toast({
-        title: "Profile loading",
-        description: "Please wait for your profile to load",
-      });
-      return;
-    }
+    if (!prompt) return;
 
     const newSaved = !isSaved;
     setIsSaved(newSaved);
 
-    await mockService.toggleSave(profile.id, prompt.id);
+    const { toggleSave } = await import('@/services/supabase/saves');
+    await toggleSave(user.id, prompt.id);
+    
+    // Invalidate queries
+    queryClient.invalidateQueries({ queryKey: ['prompt', id] });
+    queryClient.invalidateQueries({ queryKey: ['prompts'] });
 
     if (newSaved) {
       toast({ title: "Saved to collection" });
@@ -215,7 +267,7 @@ export default function PromptDetail() {
               {/* Image - constrained height with responsive sizing */}
               <div className="w-full lg:w-2/5 flex items-start justify-center">
                 <img
-                  src={prompt.image_url}
+                  src={prompt.imageUrl}
                   alt={prompt.title}
                   className="max-h-[40vh] sm:max-h-[35vh] lg:max-h-[50vh] w-auto max-w-full object-contain rounded-sm shadow-card"
                   loading="lazy"
@@ -233,9 +285,9 @@ export default function PromptDetail() {
                 <div className="flex items-center gap-2 sm:gap-3">
                   <Link to={`/profile/${prompt.creator.id}`}>
                     <Avatar className="h-6 w-6 sm:h-7 sm:w-7">
-                      <AvatarImage src={prompt.creator.avatar_url || ""} />
+                      <AvatarImage src={prompt.creator.avatarUrl || ""} />
                       <AvatarFallback className="bg-secondary font-serif text-xs">
-                        {(prompt.creator.display_name || prompt.creator.username).charAt(0).toUpperCase()}
+                        {prompt.creator.displayName.charAt(0).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   </Link>
@@ -244,7 +296,7 @@ export default function PromptDetail() {
                       to={`/profile/${prompt.creator.id}`}
                       className="text-sm font-medium hover:text-gold transition-colors"
                     >
-                      {prompt.creator.display_name || prompt.creator.username}
+                      {prompt.creator.displayName}
                     </Link>
                     <p className="text-xs text-muted-foreground">@{prompt.creator.username}</p>
                   </div>
@@ -254,14 +306,14 @@ export default function PromptDetail() {
                 <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1">
                     <Copy className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
-                    <span className="tabular-nums">{prompt.copy_count.toLocaleString()}</span>
+                    <span className="tabular-nums">{prompt.copyCount.toLocaleString()}</span>
                   </span>
                   <span className="flex items-center gap-1">
                     <Heart className="h-3 sm:h-3.5 w-3 sm:w-3.5" />
                     <span className="tabular-nums">{likeCount.toLocaleString()}</span>
                   </span>
                   <span className="text-xs px-2 py-0.5 bg-secondary rounded-sm">
-                    {prompt.tool_used}
+                    {prompt.toolUsed}
                   </span>
                 </div>
 

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import logo from "@/assets/logo.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +63,11 @@ export function Navbar({ onSearch, searchQuery = "", sortBy, onSortChange, showF
           <div className="flex items-center justify-between h-14 sm:h-16 lg:h-20">
             {/* Logo - Fluid sizing */}
             <Link to="/" className="flex items-center flex-shrink-0">
+              <img
+                src={logo}
+                alt="Paro Logo"
+                className="h-10 sm:h-12 lg:h-14 w-auto object-contain"
+              />
               <span className="font-serif text-xl sm:text-2xl lg:text-3xl tracking-tight">
                 PARO
               </span>

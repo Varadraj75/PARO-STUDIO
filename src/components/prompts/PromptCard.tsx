@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { Copy, Heart, Bookmark, Check, Pencil, Trash2, Share2, MoreHorizontal, Link as LinkIcon, UserCircle, Flag, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { mockService } from "@/lib/mockData";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,14 +27,14 @@ interface PromptCardProps {
   promptText: string;
   imageUrl: string;
   toolUsed: string;
-  viewCount: number;
-  copyCount: number;
-  likeCount: number;
+  viewCount?: number | null;
+  copyCount?: number | null;
+  likeCount?: number | null;
   creator: {
     id: string;
     username: string;
-    display_name: string | null;
-    avatar_url: string | null;
+    displayName: string;
+    avatarUrl: string | null;
   };
   tags: string[];
   isLiked?: boolean;
@@ -70,11 +70,12 @@ export function PromptCard({
   const [copied, setCopied] = useState(false);
   const [localLiked, setLocalLiked] = useState(isLiked);
   const [localSaved, setLocalSaved] = useState(isSaved);
-  const [localLikeCount, setLocalLikeCount] = useState(likeCount);
+  const [localLikeCount, setLocalLikeCount] = useState(likeCount ?? 0);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, profile } = useAuth();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -89,9 +90,9 @@ export function PromptCard({
     await navigator.clipboard.writeText(promptText);
     setCopied(true);
 
-    // Increment copy count - update directly since RPC types may not be generated yet
-    // Increment copy count
-    await mockService.incrementCopyCount(id);
+    // Increment copy count in Supabase
+    const { incrementCopyCount } = await import('@/services/supabase/prompts');
+    await incrementCopyCount(id);
 
     setTimeout(() => setCopied(false), 2000);
   };
@@ -108,19 +109,16 @@ export function PromptCard({
       return;
     }
 
-    if (!profile) {
-      toast({
-        title: "Profile loading",
-        description: "Please wait for your profile to load",
-      });
-      return;
-    }
-
     const newLiked = !localLiked;
     setLocalLiked(newLiked);
-    setLocalLikeCount((prev) => (newLiked ? prev + 1 : prev - 1));
+    setLocalLikeCount((prev) => (newLiked ? (prev ?? 0) + 1 : Math.max(0, (prev ?? 0) - 1)));
 
-    await mockService.toggleLike(profile.id, id);
+    const { toggleLike } = await import('@/services/supabase/likes');
+    await toggleLike(user.id, id);
+
+    // Invalidate queries to refresh data
+    queryClient.invalidateQueries({ queryKey: ['prompts'] });
+    queryClient.invalidateQueries({ queryKey: ['liked-prompts', user.id] });
 
     onLikeChange?.();
   };
@@ -137,22 +135,18 @@ export function PromptCard({
       return;
     }
 
-    if (!profile) {
-      toast({
-        title: "Profile loading",
-        description: "Please wait for your profile to load",
-      });
-      return;
-    }
-
     const newSaved = !localSaved;
     setLocalSaved(newSaved);
 
+    const { toggleSave } = await import('@/services/supabase/saves');
+    await toggleSave(user.id, id);
+    
+    // Invalidate queries to refresh data
+    queryClient.invalidateQueries({ queryKey: ['prompts'] });
+    queryClient.invalidateQueries({ queryKey: ['saved-prompts', user.id] });
+    
     if (newSaved) {
-      await mockService.toggleSave(profile.id, id);
       toast({ title: "Saved to collection" });
-    } else {
-      await mockService.toggleSave(profile.id, id);
     }
 
     onSaveChange?.();
@@ -168,8 +162,13 @@ export function PromptCard({
       // Note: Image deletion from storage is temporarily disabled during backend migration
       // Images will remain in storage but the prompt record will be deleted
       
-      // Delete from mock service
-      await mockService.deletePrompt(id);
+      // Delete from Supabase
+      const { deletePrompt } = await import('@/services/supabase/prompts');
+      await deletePrompt(id, user.id);
+
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['prompts'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-prompts', profile.id] });
 
       toast({ 
         title: "Prompt deleted successfully",
@@ -191,6 +190,7 @@ export function PromptCard({
     }
   };
 
+  console.log("PromptCard imageUrl:", imageUrl);
   return (
     <article className="group masonry-item">
       <div className="relative overflow-hidden rounded-sm bg-card hover-lift">
@@ -518,7 +518,7 @@ export function PromptCard({
             to={`/profile/${creator.id}`}
             className="hover:text-foreground transition-colors truncate max-w-[40%]"
           >
-            {creator.display_name || creator.username}
+            {creator.displayName}
           </Link>
           <span className="text-border flex-shrink-0">•</span>
           <span className="truncate">{toolUsed}</span>
@@ -528,11 +528,11 @@ export function PromptCard({
         <div className="flex items-center gap-3 sm:gap-4 mt-1.5 sm:mt-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-0.5 sm:gap-1">
             <Copy className="h-3 w-3" />
-            <span className="tabular-nums">{copyCount.toLocaleString()}</span>
+            <span className="tabular-nums">{(copyCount ?? 0).toLocaleString()}</span>
           </span>
           <span className="flex items-center gap-0.5 sm:gap-1">
             <Heart className="h-3 w-3" />
-            <span className="tabular-nums">{localLikeCount.toLocaleString()}</span>
+            <span className="tabular-nums">{(localLikeCount ?? 0).toLocaleString()}</span>
           </span>
         </div>
       </div>
